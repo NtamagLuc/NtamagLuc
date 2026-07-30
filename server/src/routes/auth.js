@@ -6,7 +6,7 @@ import { createSession, destroySession, setSessionCookie, clearSessionCookie, re
 export const authRouter = new Router();
 
 function publicUser(u) {
-  return { id: u.id, nom: u.nom, email: u.email, role: u.role };
+  return { id: u.id, nom: u.nom, email: u.email, role: u.role, centrale_id: u.centrale_id ?? null };
 }
 
 authRouter.post('/login', (req, res) => {

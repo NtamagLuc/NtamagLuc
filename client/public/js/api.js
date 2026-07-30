@@ -32,6 +32,7 @@ export const api = {
   // Centrales
   getCentrales: () => request('GET', '/api/centrales'),
   getCentrale: (id) => request('GET', `/api/centrales/${id}`),
+  getCentraleDashboard: (id, periode) => request('GET', `/api/centrales/${id}/dashboard${periode ? `?periode=${periode}` : ''}`),
   createCentrale: (payload) => request('POST', '/api/centrales', payload),
   updateCentrale: (id, payload) => request('PUT', `/api/centrales/${id}`, payload),
   deleteCentrale: (id) => request('DELETE', `/api/centrales/${id}`),

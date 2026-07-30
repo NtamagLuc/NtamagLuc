@@ -1,9 +1,12 @@
 import { Router, HttpError } from '../lib/miniweb.js';
 import { db } from '../db.js';
 import { computeCentralePerformance } from '../services/performance.js';
+import { computeCentraleDashboard } from '../services/dashboardCentrale.js';
 import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL, centraleScopeId, requireCentraleAccess } from '../lib/auth.js';
 import { logAudit, diffChamps } from '../lib/audit.js';
 import { sendCsv, parseCsv } from '../lib/csv.js';
+
+const PERIODES_VALIDES = ['jour', 'semaine', 'mois', 'trimestre', 'annee'];
 
 export const centralesRouter = new Router();
 
@@ -129,6 +132,15 @@ centralesRouter.get('/:id', (req, res) => {
     .prepare('SELECT * FROM actifs WHERE centrale_id = ? ORDER BY parent_id IS NOT NULL, nom')
     .all(centrale.id);
   res.json({ ...centrale, ...perf, actifs });
+});
+
+centralesRouter.get('/:id/dashboard', (req, res) => {
+  const user = requireAuth(req);
+  requireCentraleAccess(user, req.params.id);
+  const periode = PERIODES_VALIDES.includes(req.query.periode) ? req.query.periode : 'mois';
+  const dashboard = computeCentraleDashboard(req.params.id, { periode });
+  if (!dashboard) return res.status(404).json({ error: 'Centrale introuvable' });
+  res.json(dashboard);
 });
 
 centralesRouter.put('/:id', (req, res) => {

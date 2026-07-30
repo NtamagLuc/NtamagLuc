@@ -22,6 +22,7 @@ de décision à deux niveaux ait été respecté.
 | **Authentification** | Connexion par email/mot de passe, session par cookie sécurisé, vérification du statut actif du compte. 4 rôles avec permissions différenciées. |
 | **Cloisonnement par centrale** | Un Chef Centrale ne voit et n'agit que sur **sa** centrale (tableau de bord, actifs, demandes, reporting). Seul l'Administrateur a une vue globale sur l'ensemble du parc. |
 | **Gestion des centrales** | Création/modification avec code unique, type, localisation, puissance installée, seuil d'alerte, statut — Administrateur uniquement. Chaque centrale expose sa **puissance installée**, sa **puissance disponible** et sa **disponibilité (%)**. |
+| **Tableau de bord par centrale** | Vue analytique complète (page centrale) : identité, KPI (puissance installée/disponible/indisponible, disponibilité, taux d'utilisation, production estimée réelle/prévue et écart), répartition des actifs par statut et par cause d'indisponibilité (cliquable), actifs critiques, unités de production, hiérarchie des équipements, résumé maintenance, opérations en cours, simulation d'impact interactive, alertes cliquables, évolution de la disponibilité par période (jour/semaine/mois/trimestre/année, reconstruite à partir des mouvements réellement enregistrés), timeline des événements et contribution au parc. |
 | **Gestion des actifs** | Fiche complète : code unique, désignation, type, fabricant, modèle, numéro de série, date de mise en service, criticité, centrale d'affectation — Administrateur uniquement. |
 | **Hiérarchie actif mère / actifs enfants** | Profondeur illimitée (ex : Centrale → Unité de production → Groupe de production → Turbine → Générateur/Capteur), avec navigation par fil d'Ariane et détection des boucles interdite. |
 | **Import / export CSV** | Centrales, actifs (avec relations mère/fils via `parent_code`) et utilisateurs (avec centrale via `centrale_code`) sont importables et exportables en CSV UTF-8 — Administrateur uniquement. |
@@ -187,6 +188,7 @@ démonstration ci-dessus. Le port peut être changé via `PORT`.
 | GET/POST | `/api/utilisateurs/export`, `/import` | Import/export CSV des utilisateurs |
 | GET/POST/PUT/DELETE | `/api/centrales` | Centrales (scopées par centrale pour un Chef Centrale) |
 | GET/POST | `/api/centrales/export`, `/import` | Import/export CSV des centrales |
+| GET | `/api/centrales/:id/dashboard?periode=` | Tableau de bord agrégé de la centrale (KPI, causes, alertes, historique, timeline, contribution au parc) |
 | GET/POST/PUT/DELETE | `/api/actifs` | Actifs (scopés par centrale pour un Chef Centrale) |
 | GET/POST | `/api/actifs/export`, `/import` | Import/export CSV des actifs (avec `parent_code`) |
 | POST | `/api/actifs/:id/mettre-en-maintenance`, `/fin-maintenance`, `/mettre-en-reparation`, `/fin-reparation` | Actions opérationnelles directes (Chef Centrale de la centrale, Administrateur) |
@@ -218,6 +220,21 @@ faits, documentés ici pour transparence :
 - Un Responsable Mécanique et un Responsable Exploitation ne sont pas
   rattachés à une centrale : ils opèrent sur l'ensemble du parc (seul le
   rôle Chef Centrale est cloisonné, conformément à la demande).
+- La **production (MWh)** affichée dans le tableau de bord centrale est une
+  **estimation** calculée en intégrant, dans le temps, la puissance
+  disponible réellement enregistrée (reconstruite à partir des mouvements
+  historisés) — l'application ne reçoit aucune télérelève de production
+  réelle. La « production prévue » est calculée à partir du seuil de
+  disponibilité cible configuré sur la centrale. Le « rendement » n'est pas
+  affiché (aucune donnée de combustible/débit mesurée dans ce périmètre).
+  Tant qu'aucun mouvement n'a eu lieu sur une centrale, l'évolution
+  historique affiche la valeur courante reportée sur toute la période — la
+  page l'indique explicitement.
+- La puissance installée déclarée d'une centrale (champ configuré par
+  l'Administrateur) peut différer de la somme des contributions de ses
+  actifs enregistrés ; le tableau de bord signale cet écart séparément
+  (« Écart capacité nominale ») plutôt que de l'attribuer à tort à une
+  cause d'indisponibilité.
 
 ## Tests effectués
 
