@@ -20,12 +20,42 @@ export const STATUT_LABELS = {
   EN_SERVICE: 'En service',
   EN_MAINTENANCE: 'En maintenance',
   RETIRE: 'Retiré',
+  REFORME: 'Réformé',
 };
 
 export const STATUT_CLASSES = {
   EN_SERVICE: 'badge-success',
   EN_MAINTENANCE: 'badge-warning',
   RETIRE: 'badge-neutral',
+  REFORME: 'badge-danger',
+};
+
+export const ROLE_LABELS = {
+  DEMANDEUR: 'Demandeur',
+  VALIDATEUR: 'Validateur',
+  ADMINISTRATEUR: 'Administrateur',
+};
+
+export const DEMANDE_TYPE_LABELS = {
+  RETRAIT: 'Retrait',
+  DEPLACEMENT: 'Déplacement',
+  REFORME: 'Réforme',
+};
+
+export const DEMANDE_STATUT_LABELS = {
+  EN_ATTENTE: 'En attente',
+  VALIDEE: 'Validée',
+  REJETEE: 'Rejetée',
+  EXECUTEE: 'Exécutée',
+  ANNULEE: 'Annulée',
+};
+
+export const DEMANDE_STATUT_CLASSES = {
+  EN_ATTENTE: 'badge-warning',
+  VALIDEE: 'badge-info',
+  REJETEE: 'badge-danger',
+  EXECUTEE: 'badge-success',
+  ANNULEE: 'badge-neutral',
 };
 
 export const CRITICITE_LABELS = {
@@ -51,7 +81,10 @@ export const SEVERITE_CLASSES = {
 export const MOUVEMENT_LABELS = {
   DEPLACEMENT: 'Déplacement',
   RETRAIT: 'Retrait',
+  REFORME: 'Réforme',
   REMISE_EN_SERVICE: 'Remise en service',
+  MAINTENANCE_DEBUT: 'Mise en maintenance',
+  MAINTENANCE_FIN: 'Fin de maintenance',
 };
 
 export function formatNombre(n) {

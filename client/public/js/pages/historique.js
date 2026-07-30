@@ -1,14 +1,18 @@
 import { api } from '../api.js';
 import { escapeHtml, formatDate, MOUVEMENT_LABELS, SEVERITE_CLASSES } from '../utils.js';
+import { canValidate } from '../auth.js';
 
 export async function renderHistorique() {
   const app = document.getElementById('app');
-  const mouvements = await api.getMouvements();
+  const [mouvements, auditLog] = await Promise.all([
+    api.getMouvements(),
+    canValidate() ? api.getAuditLog() : Promise.resolve(null),
+  ]);
 
   app.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>Historique des mouvements</h1>
+        <h1>Historique des mouvements exécutés</h1>
         <p class="page-subtitle">${mouvements.length} mouvement(s) enregistré(s)</p>
       </div>
     </div>
@@ -16,6 +20,33 @@ export async function renderHistorique() {
       mouvements.length
         ? `<div class="mouvement-list">${mouvements.map(renderMouvement).join('')}</div>`
         : '<p class="empty-state">Aucun mouvement enregistré pour le moment.</p>'
+    }
+
+    ${
+      auditLog
+        ? `
+      <h2 class="section-title">Journal d'audit complet</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Acteur</th></tr></thead>
+          <tbody>
+            ${auditLog
+              .map(
+                (a) => `
+              <tr>
+                <td>${formatDate(a.created_at)}</td>
+                <td><span class="badge badge-neutral">${escapeHtml(a.type)}</span></td>
+                <td>${escapeHtml(a.description)}</td>
+                <td>${escapeHtml(a.acteur_nom || '—')}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+        : ''
     }
   `;
 }
@@ -47,6 +78,7 @@ function renderMouvement(m) {
           }
           ${alertesHaute ? `<span class="badge badge-danger">${alertesHaute} alerte(s) haute(s)</span>` : ''}
         </div>
+        ${m.executeur_nom ? `<p class="mouvement-commentaire">Exécuté par ${escapeHtml(m.executeur_nom)}</p>` : ''}
         ${m.commentaire ? `<p class="mouvement-commentaire">« ${escapeHtml(m.commentaire)} »</p>` : ''}
         <details class="mouvement-details">
           <summary>Voir les alertes détaillées</summary>

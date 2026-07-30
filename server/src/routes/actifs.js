@@ -1,14 +1,14 @@
 import { Router, HttpError } from '../lib/miniweb.js';
 import { db } from '../db.js';
-import {
-  simulerRetrait,
-  simulerDeplacement,
-  computeCentralePerformance,
-} from '../services/performance.js';
+import { computeCentralePerformance } from '../services/performance.js';
+import { insertMouvement, deserializeMouvement } from '../services/mouvements.js';
+import { requireAuth, requireRole } from '../lib/auth.js';
+import { logAudit } from '../lib/audit.js';
 
 export const actifsRouter = new Router();
 
 actifsRouter.get('/', (req, res) => {
+  requireAuth(req);
   const { centraleId } = req.query;
   const actifs = centraleId
     ? db.prepare('SELECT * FROM actifs WHERE centrale_id = ? ORDER BY nom').all(centraleId)
@@ -17,6 +17,7 @@ actifsRouter.get('/', (req, res) => {
 });
 
 actifsRouter.post('/', (req, res) => {
+  const user = requireRole(req, ['ADMINISTRATEUR']);
   const {
     nom,
     type,
@@ -58,10 +59,12 @@ actifsRouter.post('/', (req, res) => {
       description || null
     );
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(info.lastInsertRowid);
+  logAudit({ type: 'ACTIF_CREE', description: `Actif "${actif.nom}" créé`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
   res.status(201).json(actif);
 });
 
 actifsRouter.get('/:id', (req, res) => {
+  requireAuth(req);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) return res.status(404).json({ error: 'Actif introuvable' });
   const enfants = db.prepare('SELECT * FROM actifs WHERE parent_id = ?').all(actif.id);
@@ -72,10 +75,15 @@ actifsRouter.get('/:id', (req, res) => {
     .prepare('SELECT * FROM mouvements WHERE actif_id = ? ORDER BY date DESC')
     .all(actif.id)
     .map(deserializeMouvement);
-  res.json({ ...actif, enfants, parent, historique });
+  const demandes = db
+    .prepare('SELECT * FROM demandes WHERE actif_id = ? ORDER BY created_at DESC')
+    .all(actif.id)
+    .map(deserializeDemande);
+  res.json({ ...actif, enfants, parent, historique, demandes });
 });
 
 actifsRouter.put('/:id', (req, res) => {
+  const user = requireRole(req, ['ADMINISTRATEUR']);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) return res.status(404).json({ error: 'Actif introuvable' });
   const { nom, type, criticite, contributionMw, dateInstallation, description } = req.body;
@@ -91,10 +99,12 @@ actifsRouter.put('/:id', (req, res) => {
     description ?? actif.description,
     actif.id
   );
+  logAudit({ type: 'ACTIF_MODIFIE', description: `Actif "${actif.nom}" modifié`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
   res.json(db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.id));
 });
 
 actifsRouter.delete('/:id', (req, res) => {
+  const user = requireRole(req, ['ADMINISTRATEUR']);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) return res.status(404).json({ error: 'Actif introuvable' });
   const nbEnfants = db.prepare('SELECT COUNT(*) AS n FROM actifs WHERE parent_id = ?').get(actif.id).n;
@@ -102,161 +112,79 @@ actifsRouter.delete('/:id', (req, res) => {
     return res.status(400).json({ error: "Impossible de supprimer un actif qui possède des actifs enfants" });
   }
   db.prepare('DELETE FROM actifs WHERE id = ?').run(actif.id);
+  logAudit({ type: 'ACTIF_SUPPRIME', description: `Actif "${actif.nom}" supprimé`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
   res.status(204).end();
 });
 
-// --- Simulation & exécution du retrait ---
+// --- Actions opérationnelles directes (hors circuit de demande) ---
 
-actifsRouter.post('/:id/preview-retrait', (req, res) => {
-  res.json(simulerRetrait(req.params.id));
+actifsRouter.post('/:id/mettre-en-maintenance', (req, res) => {
+  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
+  const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
+  if (!actif) throw new HttpError(404, 'Actif introuvable');
+  if (actif.statut !== 'EN_SERVICE') {
+    throw new HttpError(400, 'Seul un actif en service peut être mis en maintenance');
+  }
+  res.status(201).json(basculerStatut(actif, 'EN_MAINTENANCE', 'MAINTENANCE_DEBUT', user, req.body?.commentaire));
 });
 
-actifsRouter.post('/:id/retrait', (req, res) => {
-  const simulation = simulerRetrait(req.params.id);
-  const descendantIds = simulation.descendants.map((d) => d.id);
-  const placeholders = descendantIds.map(() => '?').join(',');
-  db.prepare(`UPDATE actifs SET statut = 'RETIRE', updated_at = datetime('now') WHERE id IN (${placeholders})`).run(
-    ...descendantIds
-  );
-
-  const mouvement = insertMouvement({
-    actifId: simulation.actif.id,
-    actifNom: simulation.actif.nom,
-    type: 'RETRAIT',
-    centraleSource: simulation.centraleSource,
-    centraleDest: null,
-    scoreSourceAvant: simulation.scoreSourceAvant,
-    scoreSourceApres: simulation.scoreSourceApres,
-    scoreDestAvant: null,
-    scoreDestApres: null,
-    nbActifsImpactes: simulation.descendants.length,
-    alertes: simulation.alertes,
-    commentaire: req.body?.commentaire || null,
-  });
-
-  res.status(201).json({ ...simulation, mouvement });
+actifsRouter.post('/:id/fin-maintenance', (req, res) => {
+  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
+  const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
+  if (!actif) throw new HttpError(404, 'Actif introuvable');
+  if (actif.statut !== 'EN_MAINTENANCE') {
+    throw new HttpError(400, "Cet actif n'est pas en maintenance");
+  }
+  res.status(201).json(basculerStatut(actif, 'EN_SERVICE', 'MAINTENANCE_FIN', user, req.body?.commentaire));
 });
 
 actifsRouter.post('/:id/remise-en-service', (req, res) => {
+  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) throw new HttpError(404, 'Actif introuvable');
   if (actif.statut !== 'RETIRE') {
-    throw new HttpError(400, "Cet actif n'est pas retiré");
+    throw new HttpError(400, "Cet actif n'est pas retiré (ou a été réformé définitivement)");
   }
+  res.status(201).json(basculerStatut(actif, 'EN_SERVICE', 'REMISE_EN_SERVICE', user, req.body?.commentaire));
+});
 
+function basculerStatut(actif, nouveauStatut, typeMouvement, user, commentaire) {
   const avant = computeCentralePerformance(actif.centrale_id);
-  db.prepare("UPDATE actifs SET statut = 'EN_SERVICE', updated_at = datetime('now') WHERE id = ?").run(actif.id);
+  db.prepare("UPDATE actifs SET statut = ?, updated_at = datetime('now') WHERE id = ?").run(nouveauStatut, actif.id);
   const apres = computeCentralePerformance(actif.centrale_id);
 
   const alertes = [
     {
       severite: 'basse',
-      message: `"${actif.nom}" remis en service. Performance de ${avant.centrale.nom} : ${avant.performancePct}% → ${apres.performancePct}%.`,
+      message: `"${actif.nom}" : ${actif.statut} → ${nouveauStatut}. Performance de ${avant.centrale.nom} : ${avant.performancePct}% → ${apres.performancePct}%.`,
     },
   ];
 
   const mouvement = insertMouvement({
     actifId: actif.id,
     actifNom: actif.nom,
-    type: 'REMISE_EN_SERVICE',
+    type: typeMouvement,
     centraleSource: avant.centrale,
     centraleDest: null,
     scoreSourceAvant: avant.performancePct,
     scoreSourceApres: apres.performancePct,
-    scoreDestAvant: null,
-    scoreDestApres: null,
     nbActifsImpactes: 1,
     alertes,
-    commentaire: req.body?.commentaire || null,
-  });
-
-  res.status(201).json({ actif: db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.id), mouvement });
-});
-
-// --- Simulation & exécution du déplacement ---
-
-actifsRouter.post('/:id/preview-deplacement', (req, res) => {
-  const { centraleDestId } = req.body;
-  if (!centraleDestId) return res.status(400).json({ error: 'centraleDestId est requis' });
-  res.json(simulerDeplacement(req.params.id, centraleDestId));
-});
-
-actifsRouter.post('/:id/deplacement', (req, res) => {
-  const { centraleDestId, commentaire } = req.body;
-  if (!centraleDestId) return res.status(400).json({ error: 'centraleDestId est requis' });
-
-  const simulation = simulerDeplacement(req.params.id, centraleDestId);
-  const descendantIds = simulation.descendants.map((d) => d.id);
-  const placeholders = descendantIds.map(() => '?').join(',');
-  db.prepare(
-    `UPDATE actifs SET centrale_id = ?, updated_at = datetime('now') WHERE id IN (${placeholders})`
-  ).run(centraleDestId, ...descendantIds);
-
-  const mouvement = insertMouvement({
-    actifId: simulation.actif.id,
-    actifNom: simulation.actif.nom,
-    type: 'DEPLACEMENT',
-    centraleSource: simulation.centraleSource,
-    centraleDest: simulation.centraleDest,
-    scoreSourceAvant: simulation.scoreSourceAvant,
-    scoreSourceApres: simulation.scoreSourceApres,
-    scoreDestAvant: simulation.scoreDestAvant,
-    scoreDestApres: simulation.scoreDestApres,
-    nbActifsImpactes: simulation.descendants.length,
-    alertes: simulation.alertes,
     commentaire: commentaire || null,
+    executeur: user,
   });
 
-  res.status(201).json({ ...simulation, mouvement });
-});
+  logAudit({
+    type: typeMouvement,
+    description: `"${actif.nom}" : ${actif.statut} → ${nouveauStatut}`,
+    acteur: user,
+    cibleType: 'ACTIF',
+    cibleId: actif.id,
+  });
 
-function insertMouvement({
-  actifId,
-  actifNom,
-  type,
-  centraleSource,
-  centraleDest,
-  scoreSourceAvant,
-  scoreSourceApres,
-  scoreDestAvant,
-  scoreDestApres,
-  nbActifsImpactes,
-  alertes,
-  commentaire,
-}) {
-  const info = db
-    .prepare(
-      `INSERT INTO mouvements (
-        actif_id, actif_nom, type,
-        centrale_source_id, centrale_source_nom,
-        centrale_dest_id, centrale_dest_nom,
-        score_source_avant, score_source_apres,
-        score_dest_avant, score_dest_apres,
-        nb_actifs_impactes, alertes, commentaire
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      actifId,
-      actifNom,
-      type,
-      centraleSource?.id ?? null,
-      centraleSource?.nom ?? null,
-      centraleDest?.id ?? null,
-      centraleDest?.nom ?? null,
-      scoreSourceAvant,
-      scoreSourceApres,
-      scoreDestAvant,
-      scoreDestApres,
-      nbActifsImpactes,
-      JSON.stringify(alertes),
-      commentaire
-    );
-  return deserializeMouvement(
-    db.prepare('SELECT * FROM mouvements WHERE id = ?').get(info.lastInsertRowid)
-  );
+  return { actif: db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.id), mouvement };
 }
 
-function deserializeMouvement(m) {
-  if (!m) return m;
-  return { ...m, alertes: JSON.parse(m.alertes) };
+function deserializeDemande(d) {
+  return { ...d, simulation: JSON.parse(d.simulation) };
 }

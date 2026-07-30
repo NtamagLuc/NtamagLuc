@@ -1,9 +1,11 @@
 import { Router } from '../lib/miniweb.js';
 import { db } from '../db.js';
+import { requireAuth } from '../lib/auth.js';
 
 export const mouvementsRouter = new Router();
 
 mouvementsRouter.get('/', (req, res) => {
+  requireAuth(req);
   const { type, actifId } = req.query;
   let query = 'SELECT * FROM mouvements';
   const clauses = [];

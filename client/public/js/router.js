@@ -1,3 +1,7 @@
+import { getCurrentUser, loadCurrentUser, isLoaded } from './auth.js';
+import { renderNavbar } from './components/navbar.js';
+import { closeAnyModal } from './components/modal.js';
+
 const routes = [];
 const appRoot = () => document.getElementById('app');
 
@@ -21,8 +25,25 @@ export function route(pattern, handler) {
 }
 
 async function render() {
+  closeAnyModal();
   const hash = location.hash.slice(1) || '/';
   const path = hash.split('?')[0];
+
+  if (!isLoaded()) {
+    await loadCurrentUser();
+  }
+  const user = getCurrentUser();
+
+  if (path !== '/login' && !user) {
+    location.hash = '#/login';
+    return;
+  }
+  if (path === '/login' && user) {
+    location.hash = '#/';
+    return;
+  }
+
+  await renderNavbar();
 
   for (const r of routes) {
     const m = r.regex.exec(path);
@@ -33,6 +54,10 @@ async function render() {
     try {
       await r.handler(params);
     } catch (err) {
+      if (err.status === 401) {
+        location.hash = '#/login';
+        return;
+      }
       appRoot().innerHTML = `<div class="page-error">Erreur : ${err.message}</div>`;
     }
     return;

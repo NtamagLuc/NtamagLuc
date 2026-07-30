@@ -3,18 +3,32 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import './db.js';
 import { createApp } from './lib/miniweb.js';
+import { resolveUser } from './lib/auth.js';
+import { authRouter } from './routes/auth.js';
+import { utilisateursRouter } from './routes/utilisateurs.js';
 import { centralesRouter } from './routes/centrales.js';
 import { actifsRouter } from './routes/actifs.js';
+import { demandesRouter } from './routes/demandes.js';
 import { mouvementsRouter } from './routes/mouvements.js';
+import { notificationsRouter } from './routes/notifications.js';
+import { reportingRouter } from './routes/reporting.js';
+import { auditRouter } from './routes/audit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
 
 const app = createApp();
+app.setAuthResolver(resolveUser);
 
+app.use('/api/auth', authRouter);
+app.use('/api/utilisateurs', utilisateursRouter);
 app.use('/api/centrales', centralesRouter);
 app.use('/api/actifs', actifsRouter);
+app.use('/api/demandes', demandesRouter);
 app.use('/api/mouvements', mouvementsRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/reporting', reportingRouter);
+app.use('/api/audit-log', auditRouter);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

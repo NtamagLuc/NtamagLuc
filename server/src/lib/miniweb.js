@@ -53,6 +53,7 @@ export function createApp() {
   const routes = []; // { method, regex, keys, handler }
   let errorHandler = null;
   let notFoundFallback = null;
+  let authResolver = null;
 
   const app = {
     use(prefix, router) {
@@ -67,6 +68,9 @@ export function createApp() {
     },
     setNotFoundFallback(fn) {
       notFoundFallback = fn;
+    },
+    setAuthResolver(fn) {
+      authResolver = fn;
     },
     listen(port, cb) {
       const server = http.createServer((req, res) => handleRequest(req, res));
@@ -100,6 +104,7 @@ export function createApp() {
 
     try {
       req.body = await parseJsonBody(req);
+      req.user = authResolver ? authResolver(req) : null;
 
       for (const { prefix, router } of routers) {
         if (req.path === prefix || req.path.startsWith(prefix + '/')) {

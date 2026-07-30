@@ -1,9 +1,17 @@
 import { db } from '../db.js';
+import { HttpError } from '../lib/miniweb.js';
 
 const STATUT_WEIGHT = {
   EN_SERVICE: 1,
   EN_MAINTENANCE: 0.5,
   RETIRE: 0,
+  REFORME: 0,
+};
+
+const ACTION_LABELS = {
+  RETRAIT: { verbe: 'retrait', participe: 'retirés', statutCible: 'RETIRE' },
+  REFORME: { verbe: 'réforme', participe: 'réformés', statutCible: 'REFORME' },
+  DEPLACEMENT: { verbe: 'déplacement', participe: 'déplacés', statutCible: null },
 };
 
 export function scoreFromActifs(actifs, capaciteNominaleMw) {
@@ -54,10 +62,10 @@ function round2(n) {
 }
 
 /**
- * Simule le retrait (mise hors service) d'un actif et de ses descendants
- * sur la performance de sa centrale, sans rien persister.
+ * Simule la mise hors service (retrait temporaire ou réforme définitive) d'un actif
+ * et de ses descendants sur la performance de sa centrale, sans rien persister.
  */
-export function simulerRetrait(actifId) {
+export function simulerMiseHorsService(actifId, action) {
   const racine = db.prepare('SELECT * FROM actifs WHERE id = ?').get(actifId);
   if (!racine) throw new HttpError(404, 'Actif introuvable');
 
@@ -66,15 +74,16 @@ export function simulerRetrait(actifId) {
 
   const centrale = getCentrale(racine.centrale_id);
   const actifsCentrale = getCentraleActifs(racine.centrale_id);
+  const statutCible = ACTION_LABELS[action].statutCible;
 
   const avant = scoreFromActifs(actifsCentrale, centrale.capacite_nominale_mw);
   const actifsApres = actifsCentrale.map((a) =>
-    descendantIds.has(a.id) ? { ...a, statut: 'RETIRE' } : a
+    descendantIds.has(a.id) ? { ...a, statut: statutCible } : a
   );
   const apres = scoreFromActifs(actifsApres, centrale.capacite_nominale_mw);
 
   const alertes = genererAlertes({
-    action: 'RETRAIT',
+    action,
     racine,
     descendants,
     centraleSource: centrale,
@@ -164,13 +173,19 @@ function genererAlertes({
   const alertes = [];
   const baisse = round2(scoreSourceAvant - scoreSourceApres);
   const enfants = descendants.filter((d) => d.id !== racine.id);
+  const { verbe, participe } = ACTION_LABELS[action];
+
+  if (action === 'REFORME') {
+    alertes.push({
+      severite: 'haute',
+      message: `La réforme est définitive : "${racine.nom}"${enfants.length ? ' et ses actifs enfants' : ''} ne pourront plus être remis en service ensuite.`,
+    });
+  }
 
   if (racine.criticite === 'CRITIQUE') {
     alertes.push({
       severite: 'haute',
-      message: `"${racine.nom}" est un actif critique : son ${
-        action === 'RETRAIT' ? 'retrait' : 'déplacement'
-      } peut affecter la sûreté ou la continuité de production de ${centraleSource.nom}.`,
+      message: `"${racine.nom}" est un actif critique : son ${verbe} peut affecter la sûreté ou la continuité de production de ${centraleSource.nom}.`,
     });
   }
 
@@ -179,7 +194,7 @@ function genererAlertes({
       severite: 'moyenne',
       message: `Cet actif possède ${enfants.length} actif(s) enfant(s) (${enfants
         .map((e) => e.nom)
-        .join(', ')}) qui seront ${action === 'RETRAIT' ? 'retirés' : 'déplacés'} avec lui.`,
+        .join(', ')}) qui seront ${participe} avec lui.`,
     });
   }
 
@@ -222,11 +237,4 @@ function genererAlertes({
   }
 
   return alertes;
-}
-
-export class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
 }

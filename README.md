@@ -1,75 +1,123 @@
 # Gestion de retrait des actifs de centrales de production d'électricité
 
-Application de gestion des actifs (équipements) d'un parc de centrales de
-production d'électricité : suivi des actifs par centrale, hiérarchie
-actif mère / actifs enfants, **retrait** d'un actif du service, et
-**déplacement** d'un actif d'une centrale vers une autre — avec, dans les
-deux cas, une **simulation de l'impact sur la performance** des centrales
-concernées avant toute confirmation.
+Application de **gestion de demandes de retrait, de déplacement et de
+réforme d'actifs** dans un parc de centrales de production d'électricité,
+avec circuit complet demande → simulation → validation → exécution,
+authentification par rôles, notifications, audit et reporting.
 
 ## Aperçu fonctionnel
 
-- **Centrales** : nom, type (thermique, hydraulique, nucléaire, solaire,
-  éolien), localisation, capacité nominale (MW), seuil d'alerte de
-  performance (%).
-- **Actifs** : rattachés à une centrale, avec statut (en service, en
-  maintenance, retiré), criticité (faible → critique), contribution en MW,
-  et une hiérarchie **actif mère / actifs enfants** (ex : une turbine
-  "mère" avec un générateur et des capteurs "enfants").
-- **Retrait d'un actif** : le retrait (et celui de ses actifs enfants, qui
-  suivent automatiquement) est simulé avant confirmation : la page affiche
-  le score de performance de la centrale *avant/après*, ainsi que des
-  alertes contextuelles (actif critique, baisse significative, passage
-  sous le seuil recommandé…).
-- **Déplacement d'un actif vers une autre centrale** : même principe de
-  simulation, mais sur les **deux** centrales (source et destination), pour
-  visualiser à la fois la perte de performance côté source et le gain (ou
-  le risque de surcharge) côté destination.
-- **Historique** : chaque retrait/déplacement/remise en service confirmé
-  est enregistré avec un horodatage, les scores avant/après et les alertes
-  déclenchées.
+| Fonction | Description |
+|---|---|
+| **Authentification** | Connexion par email/mot de passe, session par cookie. 3 rôles : Demandeur, Validateur, Administrateur. |
+| **Création centrale** | Centrales de production (nom, type, localisation, capacité nominale, seuil d'alerte) — Administrateur. |
+| **Gestion actifs** | Création/modification/suppression d'actifs rattachés à une centrale — Administrateur. |
+| **Hiérarchie mère/enfant** | Un actif peut avoir des actifs enfants (ex : turbine → générateur, capteurs), affichés en arbre. |
+| **Consultation parc** | Tableau de bord des centrales, détail par centrale, détail par actif — tous les rôles. |
+| **Retrait actif / Déplacement actif / Réforme actif** | Trois types de **demandes** soumises par un Demandeur, Validateur ou Administrateur. |
+| **Simulation retrait / déplacement / réforme** | Impact chiffré (score de performance avant/après) + alertes contextuelles, calculé à la création de la demande et recalculé en direct à la consultation. |
+| **Validation retrait / déplacement / réforme** | Un Validateur (ou Administrateur) approuve ou rejette (motif obligatoire) une demande en attente. |
+| **Exécution retrait / déplacement / réforme** | Une fois validée, un Validateur/Administrateur déclenche l'exécution effective (modification des actifs, recalcul des performances). |
+| **Recalcul performances** | Le score de performance de chaque centrale est **toujours recalculé en direct** à partir de l'état courant des actifs (aucun cache). |
+| **Historique / audit** | Journal des mouvements exécutés (impact chiffré) + journal d'audit complet (créations, validations, rejets, connexions…) — Validateur/Administrateur. |
+| **Notifications** | Centre de notifications in-app (cloche, badge non-lus, marquage lu) : nouvelle demande à valider, demande validée/rejetée/exécutée. |
+| **Maintenance / Remise en service** | Actions opérationnelles directes (hors circuit de demande) réservées au Validateur/Administrateur : mise en maintenance, fin de maintenance, remise en service d'un actif retiré. |
+| **Réforme / décommissionnement** | Statut terminal `REFORME` : suit le même circuit demande → simulation → validation → exécution que le retrait, mais est définitif (aucune remise en service possible ensuite). |
+| **Power BI / reporting** | Tableau de bord analytique in-app (jauges, graphiques) + export CSV UTF-8 par entité, importable dans Power BI Desktop ou Excel. |
 
-Le score de performance d'une centrale est calculé comme la puissance
-effective de ses actifs (pondérée par leur statut : 100 % en service, 50 %
-en maintenance, 0 % retiré) rapportée à sa capacité nominale.
+### Le circuit de demande
+
+```
+Demandeur / Validateur / Administrateur
+        │  crée une demande (retrait, déplacement ou réforme)
+        ▼
+   EN_ATTENTE  ──simulation calculée automatiquement (score avant/après, alertes)
+        │
+        ├─ Validateur/Administrateur → Valider ──► VALIDEE ──► Exécuter ──► EXECUTEE
+        │                                                                  (actifs modifiés,
+        │                                                                   performances recalculées,
+        │                                                                   mouvement journalisé)
+        ├─ Validateur/Administrateur → Rejeter (motif requis) ──► REJETEE
+        └─ Auteur/Administrateur → Annuler ──► ANNULEE
+```
+
+Un actif mère déplacé/retiré/réformé entraîne automatiquement ses actifs
+enfants (cascade), et la simulation liste les actifs impactés.
+
+### Rôles et permissions
+
+| Action | Demandeur | Validateur | Administrateur |
+|---|:---:|:---:|:---:|
+| Consultation (centrales, actifs, reporting) | ✅ | ✅ | ✅ |
+| Créer une centrale / gérer les actifs | ❌ | ❌ | ✅ |
+| Créer une demande (retrait/déplacement/réforme) | ✅ | ✅ | ✅ |
+| Valider / rejeter une demande | ❌ | ✅ | ✅ |
+| Exécuter une demande validée | ❌ | ✅ | ✅ |
+| Annuler sa propre demande en attente | ✅ | ✅ (si auteur) | ✅ |
+| Mettre en maintenance / fin de maintenance / remise en service | ❌ | ✅ | ✅ |
+| Gestion des utilisateurs | ❌ | ❌ | ✅ |
+| Journal d'audit | ❌ | ✅ | ✅ |
+
+### Comptes de démonstration
+
+| Rôle | Email | Mot de passe |
+|---|---|---|
+| Administrateur | `admin@centrale.local` | `admin123` |
+| Validateur | `validateur@centrale.local` | `validateur123` |
+| Demandeur | `demandeur@centrale.local` | `demandeur123` |
+
+> Comptes créés automatiquement au premier démarrage. À changer avant tout
+> déploiement réel (voir page Utilisateurs, Administrateur uniquement).
 
 ## Architecture technique
 
 > ⚠️ **Contrainte d'environnement** : l'accès au registre npm (et à tout
-> CDN externe) est bloqué dans ce sandbox d'exécution — `npm install`
-> renvoie une erreur 403 même pour un simple `curl`. Il n'a donc pas été
-> possible d'installer Express, React ou Vite comme prévu initialement.
-> L'application a été construite **sans aucune dépendance externe** :
+> CDN externe) est bloqué dans le sandbox d'exécution utilisé pour
+> développer cette application — `npm install` renvoie une erreur 403.
+> L'application a donc été construite **sans aucune dépendance externe**,
+> avec uniquement les modules natifs de Node.js.
 
 - **Backend** : Node.js pur (`node:http` + `node:sqlite`, natif depuis
   Node 22). Un mini-framework façon Express (`server/src/lib/miniweb.js`)
-  fournit le routage, le parsing JSON et le CORS en ~150 lignes.
+  fournit le routage, le parsing JSON et le CORS.
+- **Authentification** : mots de passe hashés avec `scrypt` (`node:crypto`),
+  sessions stockées en base et cookie `HttpOnly` (`server/src/lib/auth.js`).
 - **Base de données** : SQLite via le module natif `node:sqlite`
   (fichier `server/data/retrait-actifs.sqlite`, créé et peuplé
   automatiquement au premier démarrage).
 - **Frontend** : JavaScript vanilla (ES modules), sans framework ni étape
-  de build — un routeur par hash fait maison (`client/public/js/router.js`)
-  et des fonctions de rendu qui génèrent du HTML. Servi directement en
-  fichiers statiques par le même serveur Node.
-
-Résultat : **une seule commande, aucune installation**, pour lancer
-l'application complète (API + interface).
+  de build — routeur par hash (`client/public/js/router.js`), garde
+  d'authentification et navbar dynamique. Servi en fichiers statiques par
+  le même serveur Node.
 
 ```
 gestion-retrait-actifs/
 ├── server/
 │   ├── src/
-│   │   ├── db.js                 # schéma SQLite + données de démonstration
-│   │   ├── index.js              # point d'entrée HTTP (API + fichiers statiques)
-│   │   ├── lib/miniweb.js        # mini-framework HTTP (routage, JSON, CORS)
-│   │   ├── routes/               # centrales.js, actifs.js, mouvements.js
-│   │   └── services/performance.js  # calcul du score + génération des alertes
-│   └── data/                     # fichier SQLite (généré, ignoré par git)
+│   │   ├── db.js                      # schéma SQLite + seed (centrales, actifs, utilisateurs)
+│   │   ├── index.js                   # point d'entrée HTTP (API + fichiers statiques)
+│   │   ├── lib/
+│   │   │   ├── miniweb.js             # mini-framework HTTP (routage, JSON, CORS)
+│   │   │   ├── auth.js                # sessions, cookies, garde d'accès par rôle
+│   │   │   ├── password.js            # hash/vérification scrypt
+│   │   │   ├── notifications.js       # création de notifications (utilisateur ou rôle)
+│   │   │   ├── audit.js               # journalisation d'audit
+│   │   │   └── csv.js                 # export CSV (BOM UTF-8, échappement)
+│   │   ├── routes/                    # auth, utilisateurs, centrales, actifs, demandes,
+│   │   │                              # mouvements, notifications, reporting, audit
+│   │   └── services/
+│   │       ├── performance.js         # calcul du score + simulation + alertes
+│   │       └── mouvements.js          # journalisation des mouvements exécutés
+│   └── data/                          # fichier SQLite (généré, ignoré par git)
 └── client/
     └── public/
         ├── index.html
         ├── css/styles.css
-        └── js/                   # api.js, router.js, app.js, components/, pages/
+        └── js/
+            ├── api.js, auth.js, router.js, app.js, utils.js
+            ├── components/            # navbar, modal, gauge, actifTree, demandeFormModal…
+            └── pages/                 # login, dashboard, centrale, actif, demandes,
+                                        # demandeDetail, historique, reporting, utilisateurs
 ```
 
 ## Lancer l'application
@@ -82,37 +130,34 @@ node server/src/index.js
 npm start
 ```
 
-Puis ouvrir http://localhost:4000 dans un navigateur. Le port peut être
-changé via la variable d'environnement `PORT`.
+Puis ouvrir http://localhost:4000 et se connecter avec l'un des comptes de
+démonstration ci-dessus. Le port peut être changé via `PORT`.
 
-Au premier démarrage, la base est initialisée avec trois centrales de
-démonstration (thermique, hydraulique, solaire) et leurs actifs.
+## API REST (principales routes)
 
-## API REST
-
-| Méthode | Route                                   | Description                                   |
-|--------|-------------------------------------------|------------------------------------------------|
-| GET    | `/api/centrales`                          | Liste des centrales + performance calculée     |
-| POST   | `/api/centrales`                          | Créer une centrale                             |
-| GET    | `/api/centrales/:id`                      | Détail d'une centrale + ses actifs             |
-| PUT    | `/api/centrales/:id`                      | Modifier une centrale                          |
-| DELETE | `/api/centrales/:id`                      | Supprimer une centrale (si elle n'a plus d'actifs) |
-| GET    | `/api/actifs?centraleId=`                 | Liste des actifs (filtrable par centrale)      |
-| POST   | `/api/actifs`                             | Créer un actif (avec `parentId` optionnel)     |
-| GET    | `/api/actifs/:id`                         | Détail d'un actif + enfants + historique       |
-| PUT    | `/api/actifs/:id`                         | Modifier un actif                              |
-| DELETE | `/api/actifs/:id`                         | Supprimer un actif (s'il n'a pas d'enfants)     |
-| POST   | `/api/actifs/:id/preview-retrait`         | Simuler le retrait (aucune écriture)           |
-| POST   | `/api/actifs/:id/retrait`                 | Confirmer le retrait (cascade aux enfants)     |
-| POST   | `/api/actifs/:id/remise-en-service`       | Remettre un actif retiré en service            |
-| POST   | `/api/actifs/:id/preview-deplacement`     | Simuler un déplacement (`centraleDestId`)      |
-| POST   | `/api/actifs/:id/deplacement`             | Confirmer le déplacement (cascade aux enfants) |
-| GET    | `/api/mouvements`                         | Historique des retraits/déplacements           |
+| Méthode | Route | Description |
+|--------|--------|-------------|
+| POST | `/api/auth/login`, `/api/auth/logout` | Connexion / déconnexion |
+| GET | `/api/auth/me` | Utilisateur courant |
+| GET/POST/PUT | `/api/utilisateurs` | Gestion des utilisateurs (Administrateur) |
+| GET/POST/PUT/DELETE | `/api/centrales` | Centrales |
+| GET/POST/PUT/DELETE | `/api/actifs` | Actifs |
+| POST | `/api/actifs/:id/mettre-en-maintenance`, `/fin-maintenance`, `/remise-en-service` | Actions directes |
+| GET/POST | `/api/demandes`, `/api/demandes/preview` | Liste / création / simulation à la volée |
+| POST | `/api/demandes/:id/valider`, `/rejeter`, `/executer`, `/annuler` | Cycle de vie d'une demande |
+| GET | `/api/mouvements` | Historique des mouvements exécutés |
+| GET | `/api/audit-log` | Journal d'audit (Validateur/Administrateur) |
+| GET/POST | `/api/notifications`, `/:id/lu`, `/lu-tout` | Centre de notifications |
+| GET | `/api/reporting/summary` | Indicateurs agrégés |
+| GET | `/api/reporting/export/:entity` | Export CSV (`centrales`, `actifs`, `mouvements`, `demandes`) |
 
 ## Tests effectués
 
-Le flux complet a été validé via des scénarios automatisés (Playwright) :
-navigation tableau de bord → détail centrale, création de centrale/actif,
-retrait avec simulation d'impact, déplacement entre deux centrales avec
-simulation avant/après sur les deux centrales, et consultation de
-l'historique — sans erreur console.
+Scénarios validés de bout en bout (Playwright, navigateur réel) :
+connexion des 3 rôles, création d'une demande de retrait avec simulation,
+notification du Validateur, validation puis exécution, recalcul de
+performance, rejet avec motif, annulation par le demandeur, réforme
+définitive (avec blocage de la remise en service ensuite), actions de
+maintenance directes, accès refusé (403) sur les pages réservées,
+redirection vers la connexion pour un utilisateur non authentifié,
+reporting et export CSV.

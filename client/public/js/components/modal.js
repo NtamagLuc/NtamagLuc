@@ -1,4 +1,8 @@
+let currentClose = null;
+
 export function openModal(title, bodyHtml, { onMount, wide } = {}) {
+  currentClose?.();
+
   const root = document.getElementById('modal-root');
   root.innerHTML = `
     <div class="modal-backdrop">
@@ -15,6 +19,7 @@ export function openModal(title, bodyHtml, { onMount, wide } = {}) {
   function close() {
     root.innerHTML = '';
     document.removeEventListener('keydown', onKeydown);
+    if (currentClose === close) currentClose = null;
   }
 
   function onKeydown(e) {
@@ -28,7 +33,13 @@ export function openModal(title, bodyHtml, { onMount, wide } = {}) {
   });
   document.addEventListener('keydown', onKeydown);
 
+  currentClose = close;
+
   if (onMount) onMount(root.querySelector('.modal-dialog'), close);
 
   return close;
+}
+
+export function closeAnyModal() {
+  currentClose?.();
 }

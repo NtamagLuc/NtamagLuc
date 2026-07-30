@@ -6,6 +6,7 @@ import {
   CRITICITE_CLASSES,
   formatNombre,
 } from '../utils.js';
+import { canValidate } from '../auth.js';
 
 function buildTree(actifs) {
   const byId = new Map(actifs.map((a) => [a.id, { ...a, enfants: [] }]));
@@ -20,11 +21,39 @@ function buildTree(actifs) {
   return roots;
 }
 
+export function renderActionButtons(actif, { size = 'sm' } = {}) {
+  const estOperateur = canValidate();
+  const cls = size === 'sm' ? 'btn btn-sm' : 'btn';
+  const boutons = [];
+
+  if (actif.statut === 'EN_SERVICE') {
+    boutons.push(`<button class="${cls} btn-warning" data-action="demander-retrait" data-id="${actif.id}">Demander un retrait</button>`);
+    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
+    if (estOperateur) {
+      boutons.push(`<button class="${cls} btn-ghost" data-action="maintenance-debut" data-id="${actif.id}">Mettre en maintenance</button>`);
+    }
+    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
+  } else if (actif.statut === 'EN_MAINTENANCE') {
+    if (estOperateur) {
+      boutons.push(`<button class="${cls} btn-success" data-action="maintenance-fin" data-id="${actif.id}">Fin de maintenance</button>`);
+    }
+    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
+    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
+  } else if (actif.statut === 'RETIRE') {
+    if (estOperateur) {
+      boutons.push(`<button class="${cls} btn-success" data-action="remise" data-id="${actif.id}">Remettre en service</button>`);
+    }
+    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
+    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
+  }
+  // REFORME : état terminal, aucune action.
+  return boutons.join('');
+}
+
 function renderNode(actif, depth) {
-  const isRetire = actif.statut === 'RETIRE';
   return `
     <li class="actif-node" style="--depth:${depth}">
-      <div class="actif-row ${isRetire ? 'actif-row-retire' : ''}">
+      <div class="actif-row ${actif.statut === 'RETIRE' || actif.statut === 'REFORME' ? 'actif-row-retire' : ''}">
         <div class="actif-info">
           <span class="actif-nom">${actif.enfants.length ? '🗂️' : '🔧'} ${escapeHtml(actif.nom)}</span>
           <span class="actif-type">${escapeHtml(actif.type)}</span>
@@ -34,14 +63,7 @@ function renderNode(actif, depth) {
         </div>
         <div class="actif-actions">
           <a class="btn btn-ghost btn-sm" href="#/actifs/${actif.id}">Détail</a>
-          ${
-            isRetire
-              ? `<button class="btn btn-sm btn-success" data-action="remise" data-id="${actif.id}">Remettre en service</button>`
-              : `
-                <button class="btn btn-sm btn-warning" data-action="retirer" data-id="${actif.id}">Retirer</button>
-                <button class="btn btn-sm btn-primary" data-action="deplacer" data-id="${actif.id}">Déplacer</button>
-              `
-          }
+          ${renderActionButtons(actif)}
         </div>
       </div>
       ${

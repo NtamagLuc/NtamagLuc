@@ -2,11 +2,16 @@ import { api } from '../api.js';
 import { gaugeHtml } from '../components/gauge.js';
 import { openCentraleFormModal } from '../components/formModal.js';
 import { escapeHtml, TYPE_CENTRALE_LABELS, formatNombre } from '../utils.js';
+import { isAdmin, canValidate, getCurrentUser } from '../auth.js';
 import { refresh } from '../router.js';
 
 export async function renderDashboard() {
   const app = document.getElementById('app');
-  const centrales = await api.getCentrales();
+  const user = getCurrentUser();
+  const [centrales, demandesEnAttente] = await Promise.all([
+    api.getCentrales(),
+    canValidate() ? api.getDemandes({ statut: 'EN_ATTENTE' }) : Promise.resolve([]),
+  ]);
 
   const enAlerte = centrales.filter((c) => c.performancePct < c.seuil_alerte_pct);
   const totalActifs = centrales.reduce((sum, c) => sum + c.nbActifs, 0);
@@ -14,12 +19,17 @@ export async function renderDashboard() {
   app.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>Tableau de bord des centrales</h1>
+        <h1>Bonjour ${escapeHtml(user.nom)}</h1>
         <p class="page-subtitle">${centrales.length} centrale(s) · ${totalActifs} actif(s) en service ou en maintenance</p>
       </div>
-      <button class="btn btn-primary" id="new-centrale-btn">+ Nouvelle centrale</button>
+      ${isAdmin() ? '<button class="btn btn-primary" id="new-centrale-btn">+ Nouvelle centrale</button>' : ''}
     </div>
 
+    ${
+      canValidate() && demandesEnAttente.length
+        ? `<a class="banner banner-info" href="#/demandes?statut=EN_ATTENTE">🕑 ${demandesEnAttente.length} demande(s) en attente de votre validation →</a>`
+        : ''
+    }
     ${
       enAlerte.length
         ? `<div class="banner banner-warning">⚠️ ${enAlerte.length} centrale(s) sous leur seuil de performance recommandé : ${enAlerte
@@ -33,7 +43,7 @@ export async function renderDashboard() {
     </div>
   `;
 
-  document.getElementById('new-centrale-btn').addEventListener('click', () => {
+  document.getElementById('new-centrale-btn')?.addEventListener('click', () => {
     openCentraleFormModal({ onDone: refresh });
   });
 }

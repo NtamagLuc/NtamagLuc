@@ -1,41 +1,72 @@
 async function request(method, path, body) {
   const res = await fetch(path, {
     method,
+    credentials: 'same-origin',
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const message = data?.error || `Erreur ${res.status}`;
-    throw new Error(message);
+    const err = new Error(data?.error || `Erreur ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
 
 export const api = {
+  // Authentification
+  login: (email, password) => request('POST', '/api/auth/login', { email, password }),
+  logout: () => request('POST', '/api/auth/logout'),
+  me: () => request('GET', '/api/auth/me'),
+
+  // Utilisateurs (admin)
+  getUtilisateurs: () => request('GET', '/api/utilisateurs'),
+  createUtilisateur: (payload) => request('POST', '/api/utilisateurs', payload),
+  updateUtilisateur: (id, payload) => request('PUT', `/api/utilisateurs/${id}`, payload),
+
+  // Centrales
   getCentrales: () => request('GET', '/api/centrales'),
   getCentrale: (id) => request('GET', `/api/centrales/${id}`),
   createCentrale: (payload) => request('POST', '/api/centrales', payload),
   updateCentrale: (id, payload) => request('PUT', `/api/centrales/${id}`, payload),
   deleteCentrale: (id) => request('DELETE', `/api/centrales/${id}`),
 
+  // Actifs
   getActifs: (centraleId) =>
     request('GET', centraleId ? `/api/actifs?centraleId=${centraleId}` : '/api/actifs'),
   getActif: (id) => request('GET', `/api/actifs/${id}`),
   createActif: (payload) => request('POST', '/api/actifs', payload),
   updateActif: (id, payload) => request('PUT', `/api/actifs/${id}`, payload),
   deleteActif: (id) => request('DELETE', `/api/actifs/${id}`),
+  mettreEnMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-maintenance`, { commentaire }),
+  finMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/fin-maintenance`, { commentaire }),
+  remiseEnService: (id, commentaire) => request('POST', `/api/actifs/${id}/remise-en-service`, { commentaire }),
 
-  previewRetrait: (id) => request('POST', `/api/actifs/${id}/preview-retrait`),
-  retrait: (id, commentaire) => request('POST', `/api/actifs/${id}/retrait`, { commentaire }),
-  remiseEnService: (id, commentaire) =>
-    request('POST', `/api/actifs/${id}/remise-en-service`, { commentaire }),
+  // Demandes (retrait / déplacement / réforme)
+  getDemandes: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request('GET', `/api/demandes${qs ? `?${qs}` : ''}`);
+  },
+  getDemande: (id) => request('GET', `/api/demandes/${id}`),
+  previewDemande: (payload) => request('POST', '/api/demandes/preview', payload),
+  creerDemande: (payload) => request('POST', '/api/demandes', payload),
+  annulerDemande: (id) => request('POST', `/api/demandes/${id}/annuler`),
+  validerDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/valider`, { commentaire }),
+  rejeterDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/rejeter`, { commentaire }),
+  executerDemande: (id) => request('POST', `/api/demandes/${id}/executer`),
 
-  previewDeplacement: (id, centraleDestId) =>
-    request('POST', `/api/actifs/${id}/preview-deplacement`, { centraleDestId }),
-  deplacement: (id, centraleDestId, commentaire) =>
-    request('POST', `/api/actifs/${id}/deplacement`, { centraleDestId, commentaire }),
-
+  // Mouvements & audit
   getMouvements: () => request('GET', '/api/mouvements'),
+  getAuditLog: () => request('GET', '/api/audit-log'),
+
+  // Notifications
+  getNotifications: () => request('GET', '/api/notifications'),
+  marquerNotificationLue: (id) => request('POST', `/api/notifications/${id}/lu`),
+  marquerToutesNotificationsLues: () => request('POST', '/api/notifications/lu-tout'),
+
+  // Reporting
+  getReportingSummary: () => request('GET', '/api/reporting/summary'),
+  exportUrl: (entity) => `/api/reporting/export/${entity}`,
 };
