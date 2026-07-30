@@ -42,9 +42,10 @@ export const api = {
   deleteActif: (id) => request('DELETE', `/api/actifs/${id}`),
   mettreEnMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-maintenance`, { commentaire }),
   finMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/fin-maintenance`, { commentaire }),
-  remiseEnService: (id, commentaire) => request('POST', `/api/actifs/${id}/remise-en-service`, { commentaire }),
+  mettreEnReparation: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-reparation`, { commentaire }),
+  finReparation: (id, commentaire) => request('POST', `/api/actifs/${id}/fin-reparation`, { commentaire }),
 
-  // Demandes (retrait / déplacement / réforme)
+  // Demandes (retrait / déplacement / décommissionnement / remise en service)
   getDemandes: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request('GET', `/api/demandes${qs ? `?${qs}` : ''}`);
@@ -52,19 +53,27 @@ export const api = {
   getDemande: (id) => request('GET', `/api/demandes/${id}`),
   previewDemande: (payload) => request('POST', '/api/demandes/preview', payload),
   creerDemande: (payload) => request('POST', '/api/demandes', payload),
-  annulerDemande: (id) => request('POST', `/api/demandes/${id}/annuler`),
+  annulerDemande: (id, motif) => request('POST', `/api/demandes/${id}/annuler`, { motif }),
+  relancerSimulation: (id) => request('POST', `/api/demandes/${id}/relancer-simulation`),
   validerDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/valider`, { commentaire }),
   rejeterDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/rejeter`, { commentaire }),
   executerDemande: (id) => request('POST', `/api/demandes/${id}/executer`),
 
   // Mouvements & audit
   getMouvements: () => request('GET', '/api/mouvements'),
-  getAuditLog: () => request('GET', '/api/audit-log'),
+  getAuditLog: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request('GET', `/api/audit-log${qs ? `?${qs}` : ''}`);
+  },
 
   // Notifications
   getNotifications: () => request('GET', '/api/notifications'),
   marquerNotificationLue: (id) => request('POST', `/api/notifications/${id}/lu`),
   marquerToutesNotificationsLues: () => request('POST', '/api/notifications/lu-tout'),
+
+  // Paramètres d'impact (admin)
+  getParametresImpact: () => request('GET', '/api/parametres/impact'),
+  updateParametresImpact: (payload) => request('PUT', '/api/parametres/impact', payload),
 
   // Reporting
   getReportingSummary: () => request('GET', '/api/reporting/summary'),

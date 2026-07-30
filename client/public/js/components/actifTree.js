@@ -6,7 +6,9 @@ import {
   CRITICITE_CLASSES,
   formatNombre,
 } from '../utils.js';
-import { canValidate } from '../auth.js';
+import { canCreateDemande, canOperateDirect } from '../auth.js';
+
+const ETATS_TERMINAUX_OU_TRANSITOIRES = ['DECOMMISSIONNE', 'REFORME', 'EN_TRANSFERT'];
 
 function buildTree(actifs) {
   const byId = new Map(actifs.map((a) => [a.id, { ...a, enfants: [] }]));
@@ -22,40 +24,52 @@ function buildTree(actifs) {
 }
 
 export function renderActionButtons(actif, { size = 'sm' } = {}) {
-  const estOperateur = canValidate();
+  const peutDemander = canCreateDemande();
+  const peutOperer = canOperateDirect();
   const cls = size === 'sm' ? 'btn btn-sm' : 'btn';
   const boutons = [];
+  const statut = actif.statut;
 
-  if (actif.statut === 'EN_SERVICE') {
-    boutons.push(`<button class="${cls} btn-warning" data-action="demander-retrait" data-id="${actif.id}">Demander un retrait</button>`);
-    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
-    if (estOperateur) {
-      boutons.push(`<button class="${cls} btn-ghost" data-action="maintenance-debut" data-id="${actif.id}">Mettre en maintenance</button>`);
+  if (ETATS_TERMINAUX_OU_TRANSITOIRES.includes(statut)) {
+    return '';
+  }
+
+  if (statut === 'HORS_SERVICE') {
+    if (peutDemander) {
+      boutons.push(`<button class="${cls} btn-success" data-action="demander-remise" data-id="${actif.id}">Demander une remise en service</button>`);
     }
-    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
-  } else if (actif.statut === 'EN_MAINTENANCE') {
-    if (estOperateur) {
+  } else {
+    if (peutDemander) {
+      boutons.push(`<button class="${cls} btn-warning" data-action="demander-retrait" data-id="${actif.id}">Demander un retrait</button>`);
+    }
+    if (statut === 'EN_SERVICE' && peutOperer) {
+      boutons.push(`<button class="${cls} btn-ghost" data-action="maintenance-debut" data-id="${actif.id}">Mettre en maintenance</button>`);
+      boutons.push(`<button class="${cls} btn-ghost" data-action="reparation-debut" data-id="${actif.id}">Mettre en réparation</button>`);
+    }
+    if (statut === 'EN_MAINTENANCE' && peutOperer) {
       boutons.push(`<button class="${cls} btn-success" data-action="maintenance-fin" data-id="${actif.id}">Fin de maintenance</button>`);
     }
-    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
-    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
-  } else if (actif.statut === 'RETIRE') {
-    if (estOperateur) {
-      boutons.push(`<button class="${cls} btn-success" data-action="remise" data-id="${actif.id}">Remettre en service</button>`);
+    if (statut === 'EN_REPARATION' && peutOperer) {
+      boutons.push(`<button class="${cls} btn-success" data-action="reparation-fin" data-id="${actif.id}">Fin de réparation</button>`);
     }
-    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Déplacer</button>`);
-    boutons.push(`<button class="${cls} btn-danger" data-action="demander-reforme" data-id="${actif.id}">Réformer</button>`);
   }
-  // REFORME : état terminal, aucune action.
+
+  if (peutDemander) {
+    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Demander un déplacement</button>`);
+    boutons.push(`<button class="${cls} btn-danger" data-action="demander-decommissionnement" data-id="${actif.id}">Décommissionner</button>`);
+  }
+
   return boutons.join('');
 }
 
 function renderNode(actif, depth) {
+  const inactif = ['HORS_SERVICE', 'DECOMMISSIONNE', 'REFORME', 'EN_TRANSFERT'].includes(actif.statut);
   return `
     <li class="actif-node" style="--depth:${depth}">
-      <div class="actif-row ${actif.statut === 'RETIRE' || actif.statut === 'REFORME' ? 'actif-row-retire' : ''}">
+      <div class="actif-row ${inactif ? 'actif-row-retire' : ''}">
         <div class="actif-info">
           <span class="actif-nom">${actif.enfants.length ? '🗂️' : '🔧'} ${escapeHtml(actif.nom)}</span>
+          <span class="actif-code">${escapeHtml(actif.code)}</span>
           <span class="actif-type">${escapeHtml(actif.type)}</span>
           <span class="badge ${STATUT_CLASSES[actif.statut] || 'badge-neutral'}">${STATUT_LABELS[actif.statut] || actif.statut}</span>
           <span class="badge ${CRITICITE_CLASSES[actif.criticite] || 'badge-neutral'}">${CRITICITE_LABELS[actif.criticite] || actif.criticite}</span>

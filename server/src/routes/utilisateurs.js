@@ -41,14 +41,14 @@ utilisateursRouter.put('/:id', (req, res) => {
   const { nom, role, actif, password } = req.body;
 
   if (role && !ROLES.includes(role)) throw new HttpError(400, `role invalide (attendu : ${ROLES.join(', ')})`);
-  if (role === 'DEMANDEUR' || actif === false) {
-    if (user.role === 'ADMINISTRATEUR') {
-      const nbAdminsActifs = db
-        .prepare("SELECT COUNT(*) AS n FROM utilisateurs WHERE role = 'ADMINISTRATEUR' AND actif = 1 AND id != ?")
-        .get(user.id).n;
-      if (nbAdminsActifs === 0) {
-        throw new HttpError(400, 'Impossible de retirer le dernier administrateur actif');
-      }
+
+  const perdLeRoleAdmin = user.role === 'ADMINISTRATEUR' && ((role && role !== 'ADMINISTRATEUR') || actif === false);
+  if (perdLeRoleAdmin) {
+    const nbAdminsActifs = db
+      .prepare("SELECT COUNT(*) AS n FROM utilisateurs WHERE role = 'ADMINISTRATEUR' AND actif = 1 AND id != ?")
+      .get(user.id).n;
+    if (nbAdminsActifs === 0) {
+      throw new HttpError(400, 'Impossible de retirer le dernier administrateur actif');
     }
   }
 

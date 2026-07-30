@@ -6,21 +6,30 @@ import {
   STATUT_LABELS,
   DEMANDE_STATUT_LABELS,
   DEMANDE_TYPE_LABELS,
+  NIVEAU_IMPACT_LABELS,
 } from '../utils.js';
 
 const COLORS = {
   EN_SERVICE: '#16a34a',
   EN_MAINTENANCE: '#d97706',
-  RETIRE: '#6b7280',
+  EN_REPARATION: '#d97706',
+  EN_TRANSFERT: '#0891b2',
+  HORS_SERVICE: '#6b7280',
+  DECOMMISSIONNE: '#dc2626',
   REFORME: '#dc2626',
   EN_ATTENTE: '#d97706',
-  VALIDEE: '#0891b2',
+  APPROUVEE: '#0891b2',
   REJETEE: '#dc2626',
   EXECUTEE: '#16a34a',
   ANNULEE: '#6b7280',
   RETRAIT: '#d97706',
   DEPLACEMENT: '#2563eb',
-  REFORME_TYPE: '#dc2626',
+  DECOMMISSIONNEMENT: '#dc2626',
+  REMISE_EN_SERVICE: '#16a34a',
+  FAIBLE: '#6b7280',
+  MOYEN: '#0891b2',
+  IMPORTANT: '#d97706',
+  CRITIQUE: '#dc2626',
 };
 
 function barChart(data, labels) {
@@ -114,6 +123,11 @@ export async function renderReporting() {
       <div class="reporting-panel">
         <h2 class="section-title">Demandes par type</h2>
         ${barChart(summary.demandesParType, DEMANDE_TYPE_LABELS)}
+      </div>
+
+      <div class="reporting-panel">
+        <h2 class="section-title">Demandes par niveau d'impact</h2>
+        ${barChart(summary.demandesParNiveauImpact, NIVEAU_IMPACT_LABELS)}
       </div>
 
       <div class="reporting-panel">

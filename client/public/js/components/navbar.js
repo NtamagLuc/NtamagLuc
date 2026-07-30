@@ -54,7 +54,10 @@ export async function renderNavbar() {
     { path: '/historique', label: 'Historique' },
     { path: '/reporting', label: 'Reporting' },
   ];
-  if (isAdmin()) links.push({ path: '/utilisateurs', label: 'Utilisateurs' });
+  if (isAdmin()) {
+    links.push({ path: '/utilisateurs', label: 'Utilisateurs' });
+    links.push({ path: '/parametres', label: 'Paramètres' });
+  }
 
   root.innerHTML = `
     <div class="topbar">

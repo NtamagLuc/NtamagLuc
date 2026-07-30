@@ -5,7 +5,35 @@ import { HttpError } from './miniweb.js';
 const SESSION_COOKIE = 'sid';
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-export const ROLES = ['DEMANDEUR', 'VALIDATEUR', 'ADMINISTRATEUR'];
+export const ROLES = [
+  'ADMINISTRATEUR',
+  'GESTIONNAIRE_ACTIFS',
+  'RESPONSABLE_CENTRALE',
+  'RESPONSABLE_PRODUCTION',
+  'VALIDATEUR',
+  'UTILISATEUR_CONSULTATION',
+];
+
+// Peut créer/modifier/supprimer des centrales et des actifs (référentiel).
+export const ROLES_GESTION_REFERENTIEL = ['ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS'];
+
+// Peut créer des demandes de retrait / déplacement / décommissionnement / remise en service.
+export const ROLES_DEMANDEUR = [
+  'ADMINISTRATEUR',
+  'GESTIONNAIRE_ACTIFS',
+  'RESPONSABLE_CENTRALE',
+  'RESPONSABLE_PRODUCTION',
+  'VALIDATEUR',
+];
+
+// Peut approuver/rejeter une demande.
+export const ROLES_VALIDATION = ['ADMINISTRATEUR', 'VALIDATEUR'];
+
+// Peut exécuter une demande approuvée.
+export const ROLES_EXECUTION = ['ADMINISTRATEUR', 'VALIDATEUR', 'GESTIONNAIRE_ACTIFS'];
+
+// Peut réaliser les actions opérationnelles directes (maintenance/réparation).
+export const ROLES_OPERATION_DIRECTE = ['ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE'];
 
 export function createSession(userId) {
   const id = randomBytes(32).toString('hex');

@@ -399,6 +399,15 @@ a {
   font-size: 0.8rem;
 }
 
+.actif-code {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--color-bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
 .actif-contrib {
   font-size: 0.8rem;
   color: var(--color-text-muted);
@@ -418,6 +427,40 @@ a {
 
 .actif-description {
   color: var(--color-text-muted);
+}
+
+.fil-ariane {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.fil-ariane-sep {
+  color: var(--color-text-muted);
+}
+
+.fil-ariane-current {
+  font-weight: 600;
+}
+
+.actif-fiche {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+
+.simulation-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .actif-meta {

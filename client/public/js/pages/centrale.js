@@ -2,9 +2,9 @@ import { api } from '../api.js';
 import { gaugeHtml } from '../components/gauge.js';
 import { renderActifTree } from '../components/actifTree.js';
 import { attachActifActionHandlers } from '../components/actifActions.js';
-import { openActifFormModal } from '../components/formModal.js';
-import { escapeHtml, TYPE_CENTRALE_LABELS, formatNombre } from '../utils.js';
-import { isAdmin } from '../auth.js';
+import { openActifFormModal, openCentraleFormModal } from '../components/formModal.js';
+import { escapeHtml, TYPE_CENTRALE_LABELS, CENTRALE_STATUT_LABELS, CENTRALE_STATUT_CLASSES, formatNombre } from '../utils.js';
+import { canManageReferentiel } from '../auth.js';
 import { refresh } from '../router.js';
 
 export async function renderCentraleDetail({ id }) {
@@ -15,10 +15,17 @@ export async function renderCentraleDetail({ id }) {
     <a class="back-link" href="#/">← Retour au tableau de bord</a>
     <div class="page-header">
       <div>
-        <h1>${escapeHtml(centrale.nom)}</h1>
-        <p class="page-subtitle">${TYPE_CENTRALE_LABELS[centrale.type] || centrale.type} · ${escapeHtml(centrale.localisation || '—')}</p>
+        <h1>${escapeHtml(centrale.nom)} <span class="badge ${CENTRALE_STATUT_CLASSES[centrale.statut] || 'badge-neutral'}">${CENTRALE_STATUT_LABELS[centrale.statut] || centrale.statut}</span></h1>
+        <p class="page-subtitle">${escapeHtml(centrale.code)} · ${TYPE_CENTRALE_LABELS[centrale.type] || centrale.type} · ${escapeHtml(centrale.localisation || '—')}</p>
       </div>
-      ${isAdmin() ? '<button class="btn btn-primary" id="new-actif-btn">+ Nouvel actif</button>' : ''}
+      ${
+        canManageReferentiel()
+          ? `<div class="actif-actions">
+               <button class="btn btn-ghost" id="edit-centrale-btn">Modifier</button>
+               <button class="btn btn-primary" id="new-actif-btn">+ Nouvel actif</button>
+             </div>`
+          : ''
+      }
     </div>
 
     <div class="centrale-summary">
@@ -30,12 +37,15 @@ export async function renderCentraleDetail({ id }) {
       </div>
     </div>
 
-    <h2 class="section-title">Actifs (${centrale.actifs.length})</h2>
+    <h2 class="section-title">Hiérarchie des actifs (${centrale.actifs.length})</h2>
     <div id="actif-tree-container">${renderActifTree(centrale.actifs)}</div>
   `;
 
   document.getElementById('new-actif-btn')?.addEventListener('click', () => {
     openActifFormModal({ centraleId: centrale.id, actifsCentrale: centrale.actifs, onDone: refresh });
+  });
+  document.getElementById('edit-centrale-btn')?.addEventListener('click', () => {
+    openCentraleFormModal({ centrale, onDone: refresh });
   });
 
   attachActifActionHandlers(

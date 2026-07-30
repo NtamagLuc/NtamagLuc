@@ -40,6 +40,27 @@ export function isAdmin() {
   return hasRole('ADMINISTRATEUR');
 }
 
+// Peut créer/modifier/supprimer des centrales et des actifs (référentiel).
+export function canManageReferentiel() {
+  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS');
+}
+
+// Peut créer des demandes de retrait / déplacement / décommissionnement / remise en service.
+export function canCreateDemande() {
+  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE', 'RESPONSABLE_PRODUCTION', 'VALIDATEUR');
+}
+
+// Peut approuver/rejeter une demande.
 export function canValidate() {
-  return hasRole('VALIDATEUR', 'ADMINISTRATEUR');
+  return hasRole('ADMINISTRATEUR', 'VALIDATEUR');
+}
+
+// Peut exécuter une demande approuvée.
+export function canExecute() {
+  return hasRole('ADMINISTRATEUR', 'VALIDATEUR', 'GESTIONNAIRE_ACTIFS');
+}
+
+// Peut réaliser les actions opérationnelles directes (maintenance/réparation).
+export function canOperateDirect() {
+  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE');
 }

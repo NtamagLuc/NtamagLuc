@@ -12,6 +12,7 @@ export function insertMouvement({
   scoreDestAvant = null,
   scoreDestApres = null,
   nbActifsImpactes,
+  niveauImpact = null,
   alertes,
   commentaire = null,
   executeur,
@@ -24,9 +25,9 @@ export function insertMouvement({
         centrale_dest_id, centrale_dest_nom,
         score_source_avant, score_source_apres,
         score_dest_avant, score_dest_apres,
-        nb_actifs_impactes, alertes, commentaire,
+        nb_actifs_impactes, niveau_impact, alertes, commentaire,
         executeur_id, executeur_nom
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       demandeId,
@@ -42,6 +43,7 @@ export function insertMouvement({
       scoreDestAvant,
       scoreDestApres,
       nbActifsImpactes,
+      niveauImpact,
       JSON.stringify(alertes),
       commentaire,
       executeur?.id ?? null,

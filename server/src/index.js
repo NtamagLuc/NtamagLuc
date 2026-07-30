@@ -13,6 +13,7 @@ import { mouvementsRouter } from './routes/mouvements.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { reportingRouter } from './routes/reporting.js';
 import { auditRouter } from './routes/audit.js';
+import { parametresRouter } from './routes/parametres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
@@ -29,6 +30,7 @@ app.use('/api/mouvements', mouvementsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/reporting', reportingRouter);
 app.use('/api/audit-log', auditRouter);
+app.use('/api/parametres', parametresRouter);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

@@ -1,8 +1,8 @@
 import { api } from '../api.js';
 import { gaugeHtml } from '../components/gauge.js';
 import { openCentraleFormModal } from '../components/formModal.js';
-import { escapeHtml, TYPE_CENTRALE_LABELS, formatNombre } from '../utils.js';
-import { isAdmin, canValidate, getCurrentUser } from '../auth.js';
+import { escapeHtml, TYPE_CENTRALE_LABELS, CENTRALE_STATUT_LABELS, CENTRALE_STATUT_CLASSES, formatNombre } from '../utils.js';
+import { canManageReferentiel, canValidate, getCurrentUser } from '../auth.js';
 import { refresh } from '../router.js';
 
 export async function renderDashboard() {
@@ -22,7 +22,7 @@ export async function renderDashboard() {
         <h1>Bonjour ${escapeHtml(user.nom)}</h1>
         <p class="page-subtitle">${centrales.length} centrale(s) · ${totalActifs} actif(s) en service ou en maintenance</p>
       </div>
-      ${isAdmin() ? '<button class="btn btn-primary" id="new-centrale-btn">+ Nouvelle centrale</button>' : ''}
+      ${canManageReferentiel() ? '<button class="btn btn-primary" id="new-centrale-btn">+ Nouvelle centrale</button>' : ''}
     </div>
 
     ${
@@ -54,7 +54,9 @@ function renderCentraleCard(c) {
       <div class="centrale-card-header">
         <div>
           <h2>${escapeHtml(c.nom)}</h2>
-          <p class="centrale-meta">${TYPE_CENTRALE_LABELS[c.type] || c.type} · ${escapeHtml(c.localisation || '—')}</p>
+          <p class="centrale-meta">${escapeHtml(c.code)} · ${TYPE_CENTRALE_LABELS[c.type] || c.type} · ${escapeHtml(c.localisation || '—')}
+            <span class="badge ${CENTRALE_STATUT_CLASSES[c.statut] || 'badge-neutral'}">${CENTRALE_STATUT_LABELS[c.statut] || c.statut}</span>
+          </p>
         </div>
         ${gaugeHtml(c.performancePct, { size: 72 })}
       </div>

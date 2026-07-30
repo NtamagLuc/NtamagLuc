@@ -5,8 +5,9 @@ import {
   DEMANDE_TYPE_LABELS,
   DEMANDE_STATUT_LABELS,
   DEMANDE_STATUT_CLASSES,
+  NIVEAU_IMPACT_LABELS,
+  NIVEAU_IMPACT_CLASSES,
 } from '../utils.js';
-import { hasRole } from '../auth.js';
 
 function readQueryParams() {
   const [, query] = location.hash.split('?');
@@ -19,12 +20,12 @@ export async function renderDemandes() {
 
   const statut = initialParams.get('statut') || '';
   const type = initialParams.get('type') || '';
-  const mine = initialParams.get('mine') === 'true' || (hasRole('DEMANDEUR') && !initialParams.has('mine'));
+  const mine = initialParams.get('mine') === 'true';
 
   app.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>Demandes de retrait, déplacement et réforme</h1>
+        <h1>Demandes de retrait, déplacement, décommissionnement et remise en service</h1>
         <p class="page-subtitle">Suivi du circuit demande → simulation → validation → exécution</p>
       </div>
     </div>
@@ -87,6 +88,7 @@ function renderDemandeCard(d) {
       <div class="mouvement-header">
         <span class="badge badge-info">${DEMANDE_TYPE_LABELS[d.type] || d.type}</span>
         <span class="badge ${DEMANDE_STATUT_CLASSES[d.statut] || 'badge-neutral'}">${DEMANDE_STATUT_LABELS[d.statut] || d.statut}</span>
+        ${d.niveau_impact ? `<span class="badge ${NIVEAU_IMPACT_CLASSES[d.niveau_impact] || 'badge-neutral'}">${NIVEAU_IMPACT_LABELS[d.niveau_impact] || d.niveau_impact}</span>` : ''}
         <span class="mouvement-actif">${escapeHtml(d.actif_nom)}</span>
         <span class="mouvement-date">${formatDate(d.created_at)}</span>
       </div>

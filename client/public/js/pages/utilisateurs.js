@@ -66,9 +66,9 @@ function openUserFormModal(user) {
       <label class="field">
         <span>Rôle</span>
         <select name="role">
-          <option value="DEMANDEUR" ${isEdit && user.role === 'DEMANDEUR' ? 'selected' : ''}>Demandeur</option>
-          <option value="VALIDATEUR" ${isEdit && user.role === 'VALIDATEUR' ? 'selected' : ''}>Validateur</option>
-          <option value="ADMINISTRATEUR" ${isEdit && user.role === 'ADMINISTRATEUR' ? 'selected' : ''}>Administrateur</option>
+          ${Object.entries(ROLE_LABELS)
+            .map(([v, l]) => `<option value="${v}" ${isEdit && user.role === v ? 'selected' : ''}>${l}</option>`)
+            .join('')}
         </select>
       </label>
       <label class="field">

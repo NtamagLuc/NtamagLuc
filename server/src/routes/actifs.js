@@ -2,10 +2,12 @@ import { Router, HttpError } from '../lib/miniweb.js';
 import { db } from '../db.js';
 import { computeCentralePerformance } from '../services/performance.js';
 import { insertMouvement, deserializeMouvement } from '../services/mouvements.js';
-import { requireAuth, requireRole } from '../lib/auth.js';
-import { logAudit } from '../lib/audit.js';
+import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL, ROLES_OPERATION_DIRECTE } from '../lib/auth.js';
+import { logAudit, diffChamps } from '../lib/audit.js';
 
 export const actifsRouter = new Router();
+
+const CHAMPS_MODIFIABLES = ['nom', 'type', 'criticite', 'contribution_mw', 'fabricant', 'modele', 'numero_serie', 'date_installation', 'description'];
 
 actifsRouter.get('/', (req, res) => {
   requireAuth(req);
@@ -17,8 +19,9 @@ actifsRouter.get('/', (req, res) => {
 });
 
 actifsRouter.post('/', (req, res) => {
-  const user = requireRole(req, ['ADMINISTRATEUR']);
+  const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
   const {
+    code,
     nom,
     type,
     centraleId,
@@ -26,12 +29,21 @@ actifsRouter.post('/', (req, res) => {
     statut,
     criticite,
     contributionMw,
+    fabricant,
+    modele,
+    numeroSerie,
     dateInstallation,
     description,
   } = req.body;
 
-  if (!nom || !centraleId) {
-    return res.status(400).json({ error: 'nom et centraleId sont requis' });
+  if (!code || !nom || !centraleId) {
+    return res.status(400).json({ error: 'code, nom et centraleId sont requis' });
+  }
+
+  const centrale = db.prepare('SELECT * FROM centrales WHERE id = ?').get(centraleId);
+  if (!centrale) return res.status(400).json({ error: 'Centrale introuvable' });
+  if (centrale.statut !== 'ACTIVE') {
+    return res.status(409).json({ error: "Impossible de rattacher un actif à une centrale inactive" });
   }
 
   if (parentId) {
@@ -42,12 +54,16 @@ actifsRouter.post('/', (req, res) => {
     }
   }
 
+  const codeExistant = db.prepare('SELECT id FROM actifs WHERE code = ?').get(code);
+  if (codeExistant) return res.status(409).json({ error: `Le code "${code}" est déjà utilisé par un autre actif` });
+
   const info = db
     .prepare(
-      `INSERT INTO actifs (nom, type, centrale_id, parent_id, statut, criticite, contribution_mw, date_installation, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO actifs (code, nom, type, centrale_id, parent_id, statut, criticite, contribution_mw, fabricant, modele, numero_serie, date_installation, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
+      code,
       nom,
       type || 'EQUIPEMENT',
       centraleId,
@@ -55,11 +71,21 @@ actifsRouter.post('/', (req, res) => {
       statut || 'EN_SERVICE',
       criticite || 'MOYENNE',
       contributionMw || 0,
+      fabricant || null,
+      modele || null,
+      numeroSerie || null,
       dateInstallation || null,
       description || null
     );
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(info.lastInsertRowid);
-  logAudit({ type: 'ACTIF_CREE', description: `Actif "${actif.nom}" créé`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
+  logAudit({
+    type: 'ACTIF_CREE',
+    description: `Actif "${actif.nom}" (${actif.code}) créé`,
+    acteur: user,
+    cibleType: 'ACTIF',
+    cibleId: actif.id,
+    centraleId: actif.centrale_id,
+  });
   res.status(201).json(actif);
 });
 
@@ -71,6 +97,8 @@ actifsRouter.get('/:id', (req, res) => {
   const parent = actif.parent_id
     ? db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.parent_id)
     : null;
+  const centrale = db.prepare('SELECT * FROM centrales WHERE id = ?').get(actif.centrale_id);
+  const fil = filAriane(actif);
   const historique = db
     .prepare('SELECT * FROM mouvements WHERE actif_id = ? ORDER BY date DESC')
     .all(actif.id)
@@ -79,73 +107,123 @@ actifsRouter.get('/:id', (req, res) => {
     .prepare('SELECT * FROM demandes WHERE actif_id = ? ORDER BY created_at DESC')
     .all(actif.id)
     .map(deserializeDemande);
-  res.json({ ...actif, enfants, parent, historique, demandes });
+  res.json({ ...actif, enfants, parent, centrale, filAriane: fil, historique, demandes });
 });
 
+function filAriane(actif) {
+  const chemin = [];
+  let courant = actif;
+  while (courant?.parent_id) {
+    courant = db.prepare('SELECT * FROM actifs WHERE id = ?').get(courant.parent_id);
+    if (courant) chemin.unshift({ id: courant.id, nom: courant.nom, type: courant.type });
+  }
+  return chemin;
+}
+
 actifsRouter.put('/:id', (req, res) => {
-  const user = requireRole(req, ['ADMINISTRATEUR']);
+  const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) return res.status(404).json({ error: 'Actif introuvable' });
-  const { nom, type, criticite, contributionMw, dateInstallation, description } = req.body;
+
+  const nouvelles = {
+    nom: req.body.nom ?? actif.nom,
+    type: req.body.type ?? actif.type,
+    criticite: req.body.criticite ?? actif.criticite,
+    contribution_mw: req.body.contributionMw ?? actif.contribution_mw,
+    fabricant: req.body.fabricant ?? actif.fabricant,
+    modele: req.body.modele ?? actif.modele,
+    numero_serie: req.body.numeroSerie ?? actif.numero_serie,
+    date_installation: req.body.dateInstallation ?? actif.date_installation,
+    description: req.body.description ?? actif.description,
+  };
+
   db.prepare(
-    `UPDATE actifs SET nom = ?, type = ?, criticite = ?, contribution_mw = ?, date_installation = ?, description = ?, updated_at = datetime('now')
+    `UPDATE actifs SET nom = ?, type = ?, criticite = ?, contribution_mw = ?, fabricant = ?, modele = ?, numero_serie = ?, date_installation = ?, description = ?, updated_at = datetime('now')
      WHERE id = ?`
   ).run(
-    nom ?? actif.nom,
-    type ?? actif.type,
-    criticite ?? actif.criticite,
-    contributionMw ?? actif.contribution_mw,
-    dateInstallation ?? actif.date_installation,
-    description ?? actif.description,
+    nouvelles.nom,
+    nouvelles.type,
+    nouvelles.criticite,
+    nouvelles.contribution_mw,
+    nouvelles.fabricant,
+    nouvelles.modele,
+    nouvelles.numero_serie,
+    nouvelles.date_installation,
+    nouvelles.description,
     actif.id
   );
-  logAudit({ type: 'ACTIF_MODIFIE', description: `Actif "${actif.nom}" modifié`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
+
+  const diff = diffChamps(actif, nouvelles, CHAMPS_MODIFIABLES);
+  const modifieCapacite = 'contribution_mw' in diff;
+  logAudit({
+    type: 'ACTIF_MODIFIE',
+    description: `Actif "${actif.nom}" modifié${modifieCapacite ? ' (impact potentiel sur la performance : contribution MW modifiée)' : ''}`,
+    acteur: user,
+    cibleType: 'ACTIF',
+    cibleId: actif.id,
+    centraleId: actif.centrale_id,
+    donnees: diff,
+  });
   res.json(db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.id));
 });
 
 actifsRouter.delete('/:id', (req, res) => {
-  const user = requireRole(req, ['ADMINISTRATEUR']);
+  const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) return res.status(404).json({ error: 'Actif introuvable' });
   const nbEnfants = db.prepare('SELECT COUNT(*) AS n FROM actifs WHERE parent_id = ?').get(actif.id).n;
   if (nbEnfants > 0) {
     return res.status(400).json({ error: "Impossible de supprimer un actif qui possède des actifs enfants" });
   }
+  const nbHistorique = db.prepare('SELECT COUNT(*) AS n FROM mouvements WHERE actif_id = ?').get(actif.id).n;
+  if (nbHistorique > 0) {
+    return res.status(400).json({ error: "Cet actif possède un historique de mouvements : il doit être décommissionné, pas supprimé, afin de garantir la traçabilité" });
+  }
   db.prepare('DELETE FROM actifs WHERE id = ?').run(actif.id);
-  logAudit({ type: 'ACTIF_SUPPRIME', description: `Actif "${actif.nom}" supprimé`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id });
+  logAudit({ type: 'ACTIF_SUPPRIME', description: `Actif "${actif.nom}" supprimé`, acteur: user, cibleType: 'ACTIF', cibleId: actif.id, centraleId: actif.centrale_id });
   res.status(204).end();
 });
 
 // --- Actions opérationnelles directes (hors circuit de demande) ---
 
 actifsRouter.post('/:id/mettre-en-maintenance', (req, res) => {
-  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
+  const user = requireRole(req, ROLES_OPERATION_DIRECTE);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) throw new HttpError(404, 'Actif introuvable');
   if (actif.statut !== 'EN_SERVICE') {
-    throw new HttpError(400, 'Seul un actif en service peut être mis en maintenance');
+    throw new HttpError(409, 'Seul un actif en service peut être mis en maintenance');
   }
   res.status(201).json(basculerStatut(actif, 'EN_MAINTENANCE', 'MAINTENANCE_DEBUT', user, req.body?.commentaire));
 });
 
 actifsRouter.post('/:id/fin-maintenance', (req, res) => {
-  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
+  const user = requireRole(req, ROLES_OPERATION_DIRECTE);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) throw new HttpError(404, 'Actif introuvable');
   if (actif.statut !== 'EN_MAINTENANCE') {
-    throw new HttpError(400, "Cet actif n'est pas en maintenance");
+    throw new HttpError(409, "Cet actif n'est pas en maintenance");
   }
   res.status(201).json(basculerStatut(actif, 'EN_SERVICE', 'MAINTENANCE_FIN', user, req.body?.commentaire));
 });
 
-actifsRouter.post('/:id/remise-en-service', (req, res) => {
-  const user = requireRole(req, ['VALIDATEUR', 'ADMINISTRATEUR']);
+actifsRouter.post('/:id/mettre-en-reparation', (req, res) => {
+  const user = requireRole(req, ROLES_OPERATION_DIRECTE);
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
   if (!actif) throw new HttpError(404, 'Actif introuvable');
-  if (actif.statut !== 'RETIRE') {
-    throw new HttpError(400, "Cet actif n'est pas retiré (ou a été réformé définitivement)");
+  if (!['EN_SERVICE', 'EN_MAINTENANCE'].includes(actif.statut)) {
+    throw new HttpError(409, 'Seul un actif en service ou en maintenance peut être mis en réparation');
   }
-  res.status(201).json(basculerStatut(actif, 'EN_SERVICE', 'REMISE_EN_SERVICE', user, req.body?.commentaire));
+  res.status(201).json(basculerStatut(actif, 'EN_REPARATION', 'REPARATION_DEBUT', user, req.body?.commentaire));
+});
+
+actifsRouter.post('/:id/fin-reparation', (req, res) => {
+  const user = requireRole(req, ROLES_OPERATION_DIRECTE);
+  const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(req.params.id);
+  if (!actif) throw new HttpError(404, 'Actif introuvable');
+  if (actif.statut !== 'EN_REPARATION') {
+    throw new HttpError(409, "Cet actif n'est pas en réparation");
+  }
+  res.status(201).json(basculerStatut(actif, 'EN_SERVICE', 'REPARATION_FIN', user, req.body?.commentaire));
 });
 
 function basculerStatut(actif, nouveauStatut, typeMouvement, user, commentaire) {
@@ -180,6 +258,7 @@ function basculerStatut(actif, nouveauStatut, typeMouvement, user, commentaire) 
     acteur: user,
     cibleType: 'ACTIF',
     cibleId: actif.id,
+    centraleId: actif.centrale_id,
   });
 
   return { actif: db.prepare('SELECT * FROM actifs WHERE id = ?').get(actif.id), mouvement };

@@ -7,10 +7,13 @@ import {
   DEMANDE_TYPE_LABELS,
   DEMANDE_STATUT_LABELS,
   DEMANDE_STATUT_CLASSES,
+  NIVEAU_IMPACT_LABELS,
+  NIVEAU_IMPACT_CLASSES,
+  STATUT_LABELS,
   MOUVEMENT_LABELS,
   SEVERITE_CLASSES,
 } from '../utils.js';
-import { getCurrentUser, canValidate } from '../auth.js';
+import { getCurrentUser, canValidate, canExecute, isAdmin } from '../auth.js';
 import { refresh } from '../router.js';
 
 export async function renderDemandeDetail({ id }) {
@@ -24,16 +27,35 @@ export async function renderDemandeDetail({ id }) {
     <div class="page-header">
       <div>
         <h1>${DEMANDE_TYPE_LABELS[demande.type] || demande.type} — ${escapeHtml(demande.actif_nom)}</h1>
-        <p class="page-subtitle">Demande #${demande.id} créée le ${formatDate(demande.created_at)} par ${escapeHtml(demande.demandeur_nom)}</p>
+        <p class="page-subtitle">Demande #${demande.id} créée le ${formatDate(demande.created_at)} par ${escapeHtml(demande.demandeur_nom)}${demande.date_prevue ? ` · date prévue : ${escapeHtml(demande.date_prevue)}` : ''}</p>
       </div>
-      <span class="badge ${DEMANDE_STATUT_CLASSES[demande.statut] || 'badge-neutral'}" style="font-size:0.9rem;">${DEMANDE_STATUT_LABELS[demande.statut] || demande.statut}</span>
+      <div>
+        <span class="badge ${DEMANDE_STATUT_CLASSES[demande.statut] || 'badge-neutral'}" style="font-size:0.9rem;">${DEMANDE_STATUT_LABELS[demande.statut] || demande.statut}</span>
+        ${demande.niveau_impact ? `<span class="badge ${NIVEAU_IMPACT_CLASSES[demande.niveau_impact] || 'badge-neutral'}" style="font-size:0.9rem;">Impact ${NIVEAU_IMPACT_LABELS[demande.niveau_impact] || demande.niveau_impact}</span>` : ''}
+      </div>
     </div>
+
+    ${
+      demande.niveau_impact === 'CRITIQUE' && ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)
+        ? '<div class="banner banner-warning">⚠️ Impact critique : cette demande nécessite la validation d\'un Administrateur.</div>'
+        : ''
+    }
+    ${
+      demande.estObsolete
+        ? `<div class="banner banner-warning">
+             ⚠️ La situation a changé depuis le calcul de cette simulation : elle est obsolète et doit être relancée avant toute validation ou exécution.
+             <button class="btn btn-sm btn-primary" id="relancer-btn" style="margin-left:10px;">Relancer la simulation</button>
+           </div>`
+        : ''
+    }
 
     <div class="demande-trajet-box">
       ${
         demande.type === 'DEPLACEMENT'
-          ? `<strong>${escapeHtml(demande.centrale_source_nom)}</strong> → <strong>${escapeHtml(demande.centrale_dest_nom)}</strong>`
-          : `Centrale : <strong>${escapeHtml(demande.centrale_source_nom)}</strong>`
+          ? `<strong>${escapeHtml(demande.centrale_source_nom)}</strong> → <strong>${escapeHtml(demande.centrale_dest_nom)}</strong>${demande.deplacer_hierarchie ? ' (avec toute la hiérarchie)' : ' (actif seul)'}`
+          : demande.type === 'DECOMMISSIONNEMENT'
+            ? `Centrale : <strong>${escapeHtml(demande.centrale_source_nom)}</strong> · État cible : <strong>${STATUT_LABELS[demande.etat_cible] || demande.etat_cible}</strong>`
+            : `Centrale : <strong>${escapeHtml(demande.centrale_source_nom)}</strong>`
       }
     </div>
 
@@ -41,15 +63,21 @@ export async function renderDemandeDetail({ id }) {
 
     ${
       demande.validateur_nom
-        ? `<p class="mouvement-commentaire">${demande.statut === 'REJETEE' ? 'Rejetée' : 'Validée'} par ${escapeHtml(demande.validateur_nom)} le ${formatDate(demande.date_validation)}${demande.commentaire_validation ? ` : « ${escapeHtml(demande.commentaire_validation)} »` : ''}</p>`
+        ? `<p class="mouvement-commentaire">${demande.statut === 'REJETEE' ? 'Rejetée' : 'Approuvée'} par ${escapeHtml(demande.validateur_nom)} le ${formatDate(demande.date_validation)}${demande.commentaire_validation ? ` : « ${escapeHtml(demande.commentaire_validation)} »` : ''}</p>`
         : ''
     }
 
-    <h2 class="section-title">Impact actuel estimé</h2>
     ${
-      demande.simulationActuelle
-        ? renderSimulation(demande.simulationActuelle)
-        : '<p class="empty-state">Simulation indisponible (actif ou centrale peut-être modifié depuis la demande).</p>'
+      ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)
+        ? `
+      <h2 class="section-title">Impact actuel estimé</h2>
+      ${
+        demande.simulationActuelle
+          ? renderSimulation(demande.simulationActuelle)
+          : '<p class="empty-state">Simulation indisponible (actif ou centrale peut-être modifié depuis la demande).</p>'
+      }
+    `
+        : ''
     }
 
     <div id="demande-actions" class="modal-footer" style="justify-content:flex-start; margin-top:20px;"></div>
@@ -81,26 +109,44 @@ export async function renderDemandeDetail({ id }) {
 
   const actionsBox = document.getElementById('demande-actions');
   const boutons = [];
+  const peutApprouverCeNiveau = demande.niveau_impact === 'CRITIQUE' ? isAdmin() : canValidate();
 
   if (demande.statut === 'EN_ATTENTE') {
-    if (canValidate()) {
-      boutons.push('<button class="btn btn-success" id="valider-btn">Valider</button>');
+    if (canValidate() && !estAuteur && !demande.estObsolete) {
+      if (peutApprouverCeNiveau) {
+        boutons.push('<button class="btn btn-success" id="valider-btn">Approuver</button>');
+      }
       boutons.push('<button class="btn btn-danger" id="rejeter-btn">Rejeter</button>');
     }
     if (estAuteur || user.role === 'ADMINISTRATEUR') {
       boutons.push('<button class="btn btn-ghost" id="annuler-btn">Annuler la demande</button>');
     }
-  } else if (demande.statut === 'VALIDEE' && canValidate()) {
-    boutons.push('<button class="btn btn-primary" id="executer-btn">Exécuter maintenant</button>');
+  } else if (demande.statut === 'APPROUVEE') {
+    if (canExecute() && !demande.estObsolete) {
+      boutons.push('<button class="btn btn-primary" id="executer-btn">Exécuter maintenant</button>');
+    }
+    if (estAuteur || user.role === 'ADMINISTRATEUR') {
+      boutons.push('<button class="btn btn-ghost" id="annuler-btn">Annuler la demande</button>');
+    }
   }
 
   actionsBox.innerHTML = boutons.join('');
+
+  document.getElementById('relancer-btn')?.addEventListener('click', async () => {
+    try {
+      await api.relancerSimulation(demande.id);
+      showToast('Simulation relancée, la demande repasse en attente de validation.', 'success');
+      refresh();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   document.getElementById('valider-btn')?.addEventListener('click', async () => {
     const commentaire = window.prompt('Commentaire de validation (optionnel) :', '') || '';
     try {
       await api.validerDemande(demande.id, commentaire);
-      showToast('Demande validée.', 'success');
+      showToast('Demande approuvée.', 'success');
       refresh();
     } catch (err) {
       showToast(err.message, 'error');
@@ -120,9 +166,10 @@ export async function renderDemandeDetail({ id }) {
   });
 
   document.getElementById('annuler-btn')?.addEventListener('click', async () => {
-    if (!confirm('Annuler cette demande ?')) return;
+    const motif = window.prompt("Motif de l'annulation (obligatoire) :", '');
+    if (!motif) return;
     try {
-      await api.annulerDemande(demande.id);
+      await api.annulerDemande(demande.id, motif);
       showToast('Demande annulée.', 'success');
       refresh();
     } catch (err) {

@@ -5,7 +5,8 @@ import { showToast } from '../utils.js';
 const DEMANDE_ACTIONS = {
   'demander-retrait': 'RETRAIT',
   'demander-deplacement': 'DEPLACEMENT',
-  'demander-reforme': 'REFORME',
+  'demander-decommissionnement': 'DECOMMISSIONNEMENT',
+  'demander-remise': 'REMISE_EN_SERVICE',
 };
 
 export function attachActifActionHandlers(container, findActif, onDone) {
@@ -28,9 +29,12 @@ export function attachActifActionHandlers(container, findActif, onDone) {
     } else if (action === 'maintenance-fin') {
       if (!confirm(`Terminer la maintenance de "${actif.nom}" ?`)) return;
       await runDirectAction(() => api.finMaintenance(actif.id), actif.nom, 'remis en service après maintenance', onDone);
-    } else if (action === 'remise') {
-      if (!confirm(`Remettre "${actif.nom}" en service ?`)) return;
-      await runDirectAction(() => api.remiseEnService(actif.id), actif.nom, 'remis en service', onDone);
+    } else if (action === 'reparation-debut') {
+      if (!confirm(`Mettre "${actif.nom}" en réparation ?`)) return;
+      await runDirectAction(() => api.mettreEnReparation(actif.id), actif.nom, 'mis en réparation', onDone);
+    } else if (action === 'reparation-fin') {
+      if (!confirm(`Terminer la réparation de "${actif.nom}" ?`)) return;
+      await runDirectAction(() => api.finReparation(actif.id), actif.nom, 'remis en service après réparation', onDone);
     }
   });
 }

@@ -8,6 +8,7 @@ import { renderDemandes } from './pages/demandes.js';
 import { renderDemandeDetail } from './pages/demandeDetail.js';
 import { renderUtilisateurs } from './pages/utilisateurs.js';
 import { renderReporting } from './pages/reporting.js';
+import { renderParametres } from './pages/parametres.js';
 
 route('/login', renderLogin);
 route('/', renderDashboard);
@@ -18,5 +19,6 @@ route('/demandes/:id', renderDemandeDetail);
 route('/utilisateurs', renderUtilisateurs);
 route('/reporting', renderReporting);
 route('/historique', renderHistorique);
+route('/parametres', renderParametres);
 
 startRouter();

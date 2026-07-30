@@ -16,35 +16,55 @@ export const TYPE_CENTRALE_LABELS = {
   EOLIEN: 'Éolien',
 };
 
+export const CENTRALE_STATUT_LABELS = {
+  ACTIVE: 'Active',
+  INACTIVE: 'Inactive',
+};
+
+export const CENTRALE_STATUT_CLASSES = {
+  ACTIVE: 'badge-success',
+  INACTIVE: 'badge-neutral',
+};
+
 export const STATUT_LABELS = {
   EN_SERVICE: 'En service',
   EN_MAINTENANCE: 'En maintenance',
-  RETIRE: 'Retiré',
+  EN_REPARATION: 'En réparation',
+  EN_TRANSFERT: 'En transfert',
+  HORS_SERVICE: 'Hors service',
+  DECOMMISSIONNE: 'Décommissionné',
   REFORME: 'Réformé',
 };
 
 export const STATUT_CLASSES = {
   EN_SERVICE: 'badge-success',
   EN_MAINTENANCE: 'badge-warning',
-  RETIRE: 'badge-neutral',
+  EN_REPARATION: 'badge-warning',
+  EN_TRANSFERT: 'badge-info',
+  HORS_SERVICE: 'badge-neutral',
+  DECOMMISSIONNE: 'badge-danger',
   REFORME: 'badge-danger',
 };
 
 export const ROLE_LABELS = {
-  DEMANDEUR: 'Demandeur',
-  VALIDATEUR: 'Validateur',
   ADMINISTRATEUR: 'Administrateur',
+  GESTIONNAIRE_ACTIFS: 'Gestionnaire des actifs',
+  RESPONSABLE_CENTRALE: 'Responsable de centrale',
+  RESPONSABLE_PRODUCTION: 'Responsable de production',
+  VALIDATEUR: 'Validateur',
+  UTILISATEUR_CONSULTATION: 'Consultation',
 };
 
 export const DEMANDE_TYPE_LABELS = {
   RETRAIT: 'Retrait',
   DEPLACEMENT: 'Déplacement',
-  REFORME: 'Réforme',
+  DECOMMISSIONNEMENT: 'Décommissionnement',
+  REMISE_EN_SERVICE: 'Remise en service',
 };
 
 export const DEMANDE_STATUT_LABELS = {
   EN_ATTENTE: 'En attente',
-  VALIDEE: 'Validée',
+  APPROUVEE: 'Approuvée',
   REJETEE: 'Rejetée',
   EXECUTEE: 'Exécutée',
   ANNULEE: 'Annulée',
@@ -52,10 +72,24 @@ export const DEMANDE_STATUT_LABELS = {
 
 export const DEMANDE_STATUT_CLASSES = {
   EN_ATTENTE: 'badge-warning',
-  VALIDEE: 'badge-info',
+  APPROUVEE: 'badge-info',
   REJETEE: 'badge-danger',
   EXECUTEE: 'badge-success',
   ANNULEE: 'badge-neutral',
+};
+
+export const NIVEAU_IMPACT_LABELS = {
+  FAIBLE: 'Faible',
+  MOYEN: 'Moyen',
+  IMPORTANT: 'Important',
+  CRITIQUE: 'Critique',
+};
+
+export const NIVEAU_IMPACT_CLASSES = {
+  FAIBLE: 'badge-neutral',
+  MOYEN: 'badge-info',
+  IMPORTANT: 'badge-warning',
+  CRITIQUE: 'badge-danger',
 };
 
 export const CRITICITE_LABELS = {
@@ -81,10 +115,12 @@ export const SEVERITE_CLASSES = {
 export const MOUVEMENT_LABELS = {
   DEPLACEMENT: 'Déplacement',
   RETRAIT: 'Retrait',
-  REFORME: 'Réforme',
+  DECOMMISSIONNEMENT: 'Décommissionnement',
   REMISE_EN_SERVICE: 'Remise en service',
   MAINTENANCE_DEBUT: 'Mise en maintenance',
   MAINTENANCE_FIN: 'Fin de maintenance',
+  REPARATION_DEBUT: 'Mise en réparation',
+  REPARATION_FIN: 'Fin de réparation',
 };
 
 export function formatNombre(n) {
