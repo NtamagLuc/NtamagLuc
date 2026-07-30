@@ -40,27 +40,31 @@ export function isAdmin() {
   return hasRole('ADMINISTRATEUR');
 }
 
-// Peut créer/modifier/supprimer des centrales et des actifs (référentiel).
+// Peut créer/modifier/supprimer des centrales et des actifs (référentiel), gérer les utilisateurs.
 export function canManageReferentiel() {
-  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS');
+  return hasRole('ADMINISTRATEUR');
 }
 
 // Peut créer des demandes de retrait / déplacement / décommissionnement / remise en service.
 export function canCreateDemande() {
-  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE', 'RESPONSABLE_PRODUCTION', 'VALIDATEUR');
+  return hasRole('ADMINISTRATEUR', 'RESPONSABLE_MECANIQUE');
 }
 
-// Peut approuver/rejeter une demande.
-export function canValidate() {
-  return hasRole('ADMINISTRATEUR', 'VALIDATEUR');
+// Peut vérifier la pertinence d'une demande (2e étape) : rejeter ou transmettre au Chef Centrale.
+export function canReviewExploitation() {
+  return hasRole('ADMINISTRATEUR', 'RESPONSABLE_EXPLOITATION');
 }
 
-// Peut exécuter une demande approuvée.
-export function canExecute() {
-  return hasRole('ADMINISTRATEUR', 'VALIDATEUR', 'GESTIONNAIRE_ACTIFS');
+// Peut donner l'approbation finale (= exécution immédiate) d'une demande transmise.
+export function canApprouverFinal() {
+  return hasRole('ADMINISTRATEUR', 'CHEF_CENTRALE');
 }
 
 // Peut réaliser les actions opérationnelles directes (maintenance/réparation).
 export function canOperateDirect() {
-  return hasRole('ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE');
+  return hasRole('ADMINISTRATEUR', 'CHEF_CENTRALE');
+}
+
+export function centraleScopeId() {
+  return currentUser?.role === 'CHEF_CENTRALE' ? currentUser.centrale_id : null;
 }

@@ -5,35 +5,25 @@ import { HttpError } from './miniweb.js';
 const SESSION_COOKIE = 'sid';
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-export const ROLES = [
-  'ADMINISTRATEUR',
-  'GESTIONNAIRE_ACTIFS',
-  'RESPONSABLE_CENTRALE',
-  'RESPONSABLE_PRODUCTION',
-  'VALIDATEUR',
-  'UTILISATEUR_CONSULTATION',
-];
+export const ROLES = ['ADMINISTRATEUR', 'RESPONSABLE_MECANIQUE', 'RESPONSABLE_EXPLOITATION', 'CHEF_CENTRALE'];
 
-// Peut créer/modifier/supprimer des centrales et des actifs (référentiel).
-export const ROLES_GESTION_REFERENTIEL = ['ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS'];
+// Peut créer/modifier/supprimer des centrales et des actifs (référentiel), gérer les utilisateurs.
+export const ROLES_GESTION_REFERENTIEL = ['ADMINISTRATEUR'];
 
 // Peut créer des demandes de retrait / déplacement / décommissionnement / remise en service.
-export const ROLES_DEMANDEUR = [
-  'ADMINISTRATEUR',
-  'GESTIONNAIRE_ACTIFS',
-  'RESPONSABLE_CENTRALE',
-  'RESPONSABLE_PRODUCTION',
-  'VALIDATEUR',
-];
+export const ROLES_DEMANDEUR = ['ADMINISTRATEUR', 'RESPONSABLE_MECANIQUE'];
 
-// Peut approuver/rejeter une demande.
-export const ROLES_VALIDATION = ['ADMINISTRATEUR', 'VALIDATEUR'];
+// Peut vérifier la pertinence d'une demande (2e étape) : rejeter ou transmettre au Chef Centrale.
+export const ROLES_EXPLOITATION = ['ADMINISTRATEUR', 'RESPONSABLE_EXPLOITATION'];
 
-// Peut exécuter une demande approuvée.
-export const ROLES_EXECUTION = ['ADMINISTRATEUR', 'VALIDATEUR', 'GESTIONNAIRE_ACTIFS'];
+// Peut donner l'approbation finale (= exécution immédiate) d'une demande transmise, pour sa centrale.
+export const ROLES_APPROBATION_FINALE = ['ADMINISTRATEUR', 'CHEF_CENTRALE'];
 
-// Peut réaliser les actions opérationnelles directes (maintenance/réparation).
-export const ROLES_OPERATION_DIRECTE = ['ADMINISTRATEUR', 'GESTIONNAIRE_ACTIFS', 'RESPONSABLE_CENTRALE'];
+// Peut réaliser les actions opérationnelles directes (maintenance/réparation), sur sa centrale pour le Chef Centrale.
+export const ROLES_OPERATION_DIRECTE = ['ADMINISTRATEUR', 'CHEF_CENTRALE'];
+
+// Rôle dont la visibilité est cantonnée à une seule centrale (via utilisateurs.centrale_id).
+export const ROLE_CENTRALE_SCOPE = 'CHEF_CENTRALE';
 
 export function createSession(userId) {
   const id = randomBytes(32).toString('hex');
@@ -83,7 +73,7 @@ export function resolveUser(req) {
   }
 
   const user = db
-    .prepare('SELECT id, nom, email, role, actif FROM utilisateurs WHERE id = ?')
+    .prepare('SELECT id, nom, email, role, centrale_id, actif FROM utilisateurs WHERE id = ?')
     .get(session.utilisateur_id);
   if (!user || !user.actif) return null;
   return { ...user, sessionId };
@@ -100,4 +90,16 @@ export function requireRole(req, roles) {
     throw new HttpError(403, "Vous n'avez pas les droits nécessaires pour cette action");
   }
   return user;
+}
+
+// Retourne l'id de centrale auquel restreindre la visibilité de l'utilisateur, ou null si vue globale.
+export function centraleScopeId(user) {
+  return user.role === ROLE_CENTRALE_SCOPE ? user.centrale_id : null;
+}
+
+export function requireCentraleAccess(user, centraleId) {
+  const scope = centraleScopeId(user);
+  if (scope && Number(scope) !== Number(centraleId)) {
+    throw new HttpError(403, "Vous n'avez accès qu'aux informations de votre centrale");
+  }
 }

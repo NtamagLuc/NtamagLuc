@@ -6,8 +6,8 @@ export async function renderLogin() {
   app.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>⚡ Gestion des actifs de centrales</h1>
-        <p class="login-subtitle">Connectez-vous pour accéder à l'application.</p>
+        <img src="/assets/socadel-logo.jpeg" alt="SOCAD'EL" class="login-logo" />
+        <p class="login-subtitle">Gestion des actifs industriels — Connectez-vous pour accéder à l'application.</p>
         <form id="login-form">
           <label class="field">
             <span>Email</span>
@@ -24,8 +24,10 @@ export async function renderLogin() {
           <p><strong>Comptes de démonstration</strong></p>
           <ul>
             <li>Administrateur : admin@centrale.local / admin123</li>
-            <li>Validateur : validateur@centrale.local / validateur123</li>
-            <li>Demandeur : demandeur@centrale.local / demandeur123</li>
+            <li>Responsable Mécanique : mecanique@centrale.local / mecanique123</li>
+            <li>Responsable Exploitation : exploitation@centrale.local / exploitation123</li>
+            <li>Chef Centrale (Douala) : chef.douala@centrale.local / chefcentrale123</li>
+            <li>Chef Centrale (Song Loulou) : chef.songloulou@centrale.local / chefcentrale123</li>
           </ul>
         </div>
       </div>

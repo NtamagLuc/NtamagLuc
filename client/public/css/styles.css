@@ -32,36 +32,85 @@ a {
   text-decoration: none;
 }
 
-.topbar {
+.app-shell {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 32px;
+  min-height: 100vh;
+  align-items: stretch;
+}
+
+#sidebar-root {
+  flex-shrink: 0;
+}
+
+body.has-sidebar #sidebar-root {
+  width: 248px;
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   position: sticky;
   top: 0;
-  z-index: 10;
+  height: 100vh;
+  z-index: 20;
 }
 
-.brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--color-text);
+.main-area {
+  flex: 1;
+  min-width: 0;
 }
 
-.topnav {
+.sidebar-brand {
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 14px 10px;
   display: flex;
-  gap: 24px;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
 }
 
-.topnav a {
-  color: var(--color-text-muted);
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--color-text);
   font-weight: 500;
+  font-size: 0.9rem;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
 }
 
-.topnav a:hover {
+.sidebar-link:hover {
+  background: var(--color-bg);
+}
+
+.sidebar-link.active {
+  background: #eff6ff;
   color: var(--color-primary);
+  font-weight: 700;
+}
+
+.sidebar-icon {
+  font-size: 1.05rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .app {
@@ -774,46 +823,45 @@ a {
   background: var(--color-danger);
 }
 
-/* Navbar dynamique */
-.topnav a.active {
-  color: var(--color-primary);
-  font-weight: 700;
-}
-
-.topbar-right {
+/* Sidebar footer : notifications + utilisateur + déconnexion */
+.sidebar-footer {
+  border-top: 1px solid var(--color-border);
+  padding: 10px;
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .user-chip {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   font-size: 0.85rem;
+  padding: 8px 12px;
 }
 
 .user-nom {
   font-weight: 600;
 }
 
+.sidebar-logout {
+  width: 100%;
+  justify-content: center;
+}
+
 .notif-wrapper {
   position: relative;
 }
 
-.notif-bell {
+.notif-bell-link {
   position: relative;
-  background: transparent;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 4px;
 }
 
 .notif-badge {
   position: absolute;
-  top: -2px;
-  right: -4px;
+  top: 6px;
+  left: 26px;
   background: var(--color-danger);
   color: #fff;
   font-size: 0.65rem;
@@ -829,8 +877,8 @@ a {
 
 .notif-dropdown {
   position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
+  left: calc(100% + 8px);
+  bottom: 0;
   width: 340px;
   max-height: 420px;
   overflow-y: auto;
@@ -917,15 +965,18 @@ a {
   max-width: 380px;
 }
 
-.login-card h1 {
-  font-size: 1.2rem;
-  margin: 0 0 6px;
+.login-logo {
+  display: block;
+  max-width: 220px;
+  height: auto;
+  margin: 0 auto 16px;
 }
 
 .login-subtitle {
   color: var(--color-text-muted);
   font-size: 0.85rem;
   margin: 0 0 20px;
+  text-align: center;
 }
 
 .login-submit {
@@ -1146,12 +1197,60 @@ a {
   margin-top: 10px;
 }
 
+@media (max-width: 720px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  body.has-sidebar #sidebar-root {
+    width: 100%;
+    height: auto;
+    position: sticky;
+    top: 0;
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .sidebar-brand {
+    display: none;
+  }
+  .sidebar-nav {
+    flex: 1;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px;
+  }
+  .sidebar-link {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.62rem;
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .sidebar-footer {
+    flex-direction: row;
+    align-items: center;
+    border-top: none;
+    border-left: 1px solid var(--color-border);
+    padding: 6px;
+  }
+  .user-chip {
+    display: none;
+  }
+  .sidebar-logout {
+    width: auto;
+  }
+  .notif-dropdown {
+    left: auto;
+    right: 0;
+    bottom: auto;
+    top: 100%;
+  }
+}
+
 @media (max-width: 600px) {
   .app {
     padding: 16px;
-  }
-  .topbar {
-    padding: 12px 16px;
   }
   .centrale-summary {
     flex-direction: column;

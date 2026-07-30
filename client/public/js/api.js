@@ -25,6 +25,9 @@ export const api = {
   getUtilisateurs: () => request('GET', '/api/utilisateurs'),
   createUtilisateur: (payload) => request('POST', '/api/utilisateurs', payload),
   updateUtilisateur: (id, payload) => request('PUT', `/api/utilisateurs/${id}`, payload),
+  deleteUtilisateur: (id) => request('DELETE', `/api/utilisateurs/${id}`),
+  importUtilisateurs: (csv) => request('POST', '/api/utilisateurs/import', { csv }),
+  exportUtilisateursUrl: () => '/api/utilisateurs/export',
 
   // Centrales
   getCentrales: () => request('GET', '/api/centrales'),
@@ -32,6 +35,8 @@ export const api = {
   createCentrale: (payload) => request('POST', '/api/centrales', payload),
   updateCentrale: (id, payload) => request('PUT', `/api/centrales/${id}`, payload),
   deleteCentrale: (id) => request('DELETE', `/api/centrales/${id}`),
+  importCentrales: (csv) => request('POST', '/api/centrales/import', { csv }),
+  exportCentralesUrl: () => '/api/centrales/export',
 
   // Actifs
   getActifs: (centraleId) =>
@@ -40,6 +45,8 @@ export const api = {
   createActif: (payload) => request('POST', '/api/actifs', payload),
   updateActif: (id, payload) => request('PUT', `/api/actifs/${id}`, payload),
   deleteActif: (id) => request('DELETE', `/api/actifs/${id}`),
+  importActifs: (csv) => request('POST', '/api/actifs/import', { csv }),
+  exportActifsUrl: () => '/api/actifs/export',
   mettreEnMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-maintenance`, { commentaire }),
   finMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/fin-maintenance`, { commentaire }),
   mettreEnReparation: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-reparation`, { commentaire }),
@@ -55,9 +62,10 @@ export const api = {
   creerDemande: (payload) => request('POST', '/api/demandes', payload),
   annulerDemande: (id, motif) => request('POST', `/api/demandes/${id}/annuler`, { motif }),
   relancerSimulation: (id) => request('POST', `/api/demandes/${id}/relancer-simulation`),
-  validerDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/valider`, { commentaire }),
+  transmettreDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/transmettre`, { commentaire }),
+  rejeterExploitationDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/rejeter-exploitation`, { commentaire }),
+  approuverDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/approuver`, { commentaire }),
   rejeterDemande: (id, commentaire) => request('POST', `/api/demandes/${id}/rejeter`, { commentaire }),
-  executerDemande: (id) => request('POST', `/api/demandes/${id}/executer`),
 
   // Mouvements & audit
   getMouvements: () => request('GET', '/api/mouvements'),

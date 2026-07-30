@@ -193,7 +193,7 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
             motif: motifInput.value.trim(),
             datePrevue: datePrevueInput.value || null,
           });
-          showToast('Demande soumise, en attente de validation.', 'success');
+          showToast('Demande soumise, en attente de vérification par l\'Exploitation.', 'success');
           close();
           onDone?.();
         } catch (err) {

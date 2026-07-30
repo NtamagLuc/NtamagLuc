@@ -1,12 +1,11 @@
 import { Router } from '../lib/miniweb.js';
 import { db } from '../db.js';
-import { requireRole, ROLES_VALIDATION } from '../lib/auth.js';
+import { requireRole } from '../lib/auth.js';
 
 export const auditRouter = new Router();
 
-// L'administrateur et le validateur jouent ici le rôle d'auditeur.
 auditRouter.get('/', (req, res) => {
-  requireRole(req, ROLES_VALIDATION);
+  requireRole(req, ['ADMINISTRATEUR']);
   const { cibleType, cibleId, centraleId, acteurId, type, dateDebut, dateFin } = req.query;
   let query = 'SELECT * FROM audit_log';
   const clauses = [];

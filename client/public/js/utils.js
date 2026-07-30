@@ -48,11 +48,9 @@ export const STATUT_CLASSES = {
 
 export const ROLE_LABELS = {
   ADMINISTRATEUR: 'Administrateur',
-  GESTIONNAIRE_ACTIFS: 'Gestionnaire des actifs',
-  RESPONSABLE_CENTRALE: 'Responsable de centrale',
-  RESPONSABLE_PRODUCTION: 'Responsable de production',
-  VALIDATEUR: 'Validateur',
-  UTILISATEUR_CONSULTATION: 'Consultation',
+  RESPONSABLE_MECANIQUE: 'Responsable Mécanique',
+  RESPONSABLE_EXPLOITATION: 'Responsable Exploitation',
+  CHEF_CENTRALE: 'Chef Centrale',
 };
 
 export const DEMANDE_TYPE_LABELS = {
@@ -63,8 +61,8 @@ export const DEMANDE_TYPE_LABELS = {
 };
 
 export const DEMANDE_STATUT_LABELS = {
-  EN_ATTENTE: 'En attente',
-  APPROUVEE: 'Approuvée',
+  EN_ATTENTE: 'En attente (Exploitation)',
+  TRANSMISE: 'Transmise (Chef Centrale)',
   REJETEE: 'Rejetée',
   EXECUTEE: 'Exécutée',
   ANNULEE: 'Annulée',
@@ -72,7 +70,7 @@ export const DEMANDE_STATUT_LABELS = {
 
 export const DEMANDE_STATUT_CLASSES = {
   EN_ATTENTE: 'badge-warning',
-  APPROUVEE: 'badge-info',
+  TRANSMISE: 'badge-info',
   REJETEE: 'badge-danger',
   EXECUTEE: 'badge-success',
   ANNULEE: 'badge-neutral',

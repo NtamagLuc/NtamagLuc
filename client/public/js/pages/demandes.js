@@ -26,7 +26,7 @@ export async function renderDemandes() {
     <div class="page-header">
       <div>
         <h1>Demandes de retrait, déplacement, décommissionnement et remise en service</h1>
-        <p class="page-subtitle">Suivi du circuit demande → simulation → validation → exécution</p>
+        <p class="page-subtitle">Suivi du circuit demande → vérification Exploitation → approbation Chef Centrale → exécution</p>
       </div>
     </div>
 
@@ -100,7 +100,7 @@ function renderDemandeCard(d) {
               : escapeHtml(d.centrale_source_nom)
           }
         </div>
-        <p class="mouvement-commentaire">Demandeur : ${escapeHtml(d.demandeur_nom)}${d.validateur_nom ? ` · Validateur : ${escapeHtml(d.validateur_nom)}` : ''}</p>
+        <p class="mouvement-commentaire">Demandeur : ${escapeHtml(d.demandeur_nom)}${d.exploitation_nom ? ` · Exploitation : ${escapeHtml(d.exploitation_nom)}` : ''}${d.approbateur_nom ? ` · Chef Centrale : ${escapeHtml(d.approbateur_nom)}` : ''}</p>
         ${d.motif ? `<p class="mouvement-commentaire">« ${escapeHtml(d.motif)} »</p>` : ''}
       </div>
     </a>

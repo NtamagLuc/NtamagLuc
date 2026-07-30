@@ -1,10 +1,10 @@
 import { api } from '../api.js';
 import { escapeHtml, formatDate, MOUVEMENT_LABELS, NIVEAU_IMPACT_LABELS, NIVEAU_IMPACT_CLASSES, SEVERITE_CLASSES } from '../utils.js';
-import { canValidate } from '../auth.js';
+import { isAdmin } from '../auth.js';
 
 export async function renderHistorique() {
   const app = document.getElementById('app');
-  const peutAuditer = canValidate();
+  const peutAuditer = isAdmin();
   const [mouvements, auditLog] = await Promise.all([
     api.getMouvements(),
     peutAuditer ? api.getAuditLog() : Promise.resolve(null),

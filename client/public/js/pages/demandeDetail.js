@@ -13,7 +13,7 @@ import {
   MOUVEMENT_LABELS,
   SEVERITE_CLASSES,
 } from '../utils.js';
-import { getCurrentUser, canValidate, canExecute, isAdmin } from '../auth.js';
+import { getCurrentUser, canReviewExploitation, canApprouverFinal, isAdmin } from '../auth.js';
 import { refresh } from '../router.js';
 
 export async function renderDemandeDetail({ id }) {
@@ -36,14 +36,14 @@ export async function renderDemandeDetail({ id }) {
     </div>
 
     ${
-      demande.niveau_impact === 'CRITIQUE' && ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)
-        ? '<div class="banner banner-warning">⚠️ Impact critique : cette demande nécessite la validation d\'un Administrateur.</div>'
+      demande.niveau_impact === 'CRITIQUE' && ['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut)
+        ? '<div class="banner banner-warning">⚠️ Impact critique : l\'approbation finale de cette demande nécessite un Administrateur.</div>'
         : ''
     }
     ${
       demande.estObsolete
         ? `<div class="banner banner-warning">
-             ⚠️ La situation a changé depuis le calcul de cette simulation : elle est obsolète et doit être relancée avant toute validation ou exécution.
+             ⚠️ La situation a changé depuis le calcul de cette simulation : elle est obsolète et doit être relancée avant toute décision.
              <button class="btn btn-sm btn-primary" id="relancer-btn" style="margin-left:10px;">Relancer la simulation</button>
            </div>`
         : ''
@@ -62,13 +62,18 @@ export async function renderDemandeDetail({ id }) {
     ${demande.motif ? `<p class="mouvement-commentaire">Motif : « ${escapeHtml(demande.motif)} »</p>` : ''}
 
     ${
-      demande.validateur_nom
-        ? `<p class="mouvement-commentaire">${demande.statut === 'REJETEE' ? 'Rejetée' : 'Approuvée'} par ${escapeHtml(demande.validateur_nom)} le ${formatDate(demande.date_validation)}${demande.commentaire_validation ? ` : « ${escapeHtml(demande.commentaire_validation)} »` : ''}</p>`
+      demande.exploitation_nom
+        ? `<p class="mouvement-commentaire">${demande.statut === 'REJETEE' && demande.rejete_par === 'EXPLOITATION' ? 'Rejetée' : 'Vérifiée et transmise'} par ${escapeHtml(demande.exploitation_nom)} (Exploitation) le ${formatDate(demande.date_exploitation)}${demande.commentaire_exploitation ? ` : « ${escapeHtml(demande.commentaire_exploitation)} »` : ''}</p>`
+        : ''
+    }
+    ${
+      demande.approbateur_nom
+        ? `<p class="mouvement-commentaire">${demande.statut === 'REJETEE' && demande.rejete_par === 'CENTRALE' ? 'Rejetée' : 'Approuvée et exécutée'} par ${escapeHtml(demande.approbateur_nom)} le ${formatDate(demande.date_approbation)}${demande.commentaire_approbation ? ` : « ${escapeHtml(demande.commentaire_approbation)} »` : ''}</p>`
         : ''
     }
 
     ${
-      ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)
+      ['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut)
         ? `
       <h2 class="section-title">Impact actuel estimé</h2>
       ${
@@ -109,21 +114,22 @@ export async function renderDemandeDetail({ id }) {
 
   const actionsBox = document.getElementById('demande-actions');
   const boutons = [];
-  const peutApprouverCeNiveau = demande.niveau_impact === 'CRITIQUE' ? isAdmin() : canValidate();
+  const peutApprouverCeNiveau = demande.niveau_impact === 'CRITIQUE' ? isAdmin() : canApprouverFinal();
 
   if (demande.statut === 'EN_ATTENTE') {
-    if (canValidate() && !estAuteur && !demande.estObsolete) {
-      if (peutApprouverCeNiveau) {
-        boutons.push('<button class="btn btn-success" id="valider-btn">Approuver</button>');
-      }
-      boutons.push('<button class="btn btn-danger" id="rejeter-btn">Rejeter</button>');
+    if (canReviewExploitation() && !demande.estObsolete) {
+      boutons.push('<button class="btn btn-success" id="transmettre-btn">Transmettre au Chef Centrale</button>');
+      boutons.push('<button class="btn btn-danger" id="rejeter-exploitation-btn">Rejeter</button>');
     }
     if (estAuteur || user.role === 'ADMINISTRATEUR') {
       boutons.push('<button class="btn btn-ghost" id="annuler-btn">Annuler la demande</button>');
     }
-  } else if (demande.statut === 'APPROUVEE') {
-    if (canExecute() && !demande.estObsolete) {
-      boutons.push('<button class="btn btn-primary" id="executer-btn">Exécuter maintenant</button>');
+  } else if (demande.statut === 'TRANSMISE') {
+    if (peutApprouverCeNiveau && !demande.estObsolete) {
+      boutons.push('<button class="btn btn-primary" id="approuver-btn">Approuver (exécuter)</button>');
+    }
+    if (canApprouverFinal() && !demande.estObsolete) {
+      boutons.push('<button class="btn btn-danger" id="rejeter-btn">Rejeter</button>');
     }
     if (estAuteur || user.role === 'ADMINISTRATEUR') {
       boutons.push('<button class="btn btn-ghost" id="annuler-btn">Annuler la demande</button>');
@@ -135,18 +141,42 @@ export async function renderDemandeDetail({ id }) {
   document.getElementById('relancer-btn')?.addEventListener('click', async () => {
     try {
       await api.relancerSimulation(demande.id);
-      showToast('Simulation relancée, la demande repasse en attente de validation.', 'success');
+      showToast('Simulation relancée, la demande repasse en attente de vérification par l\'Exploitation.', 'success');
       refresh();
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
 
-  document.getElementById('valider-btn')?.addEventListener('click', async () => {
-    const commentaire = window.prompt('Commentaire de validation (optionnel) :', '') || '';
+  document.getElementById('transmettre-btn')?.addEventListener('click', async () => {
+    const commentaire = window.prompt('Commentaire de vérification (optionnel) :', '') || '';
     try {
-      await api.validerDemande(demande.id, commentaire);
-      showToast('Demande approuvée.', 'success');
+      await api.transmettreDemande(demande.id, commentaire);
+      showToast('Demande transmise au Chef Centrale.', 'success');
+      refresh();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('rejeter-exploitation-btn')?.addEventListener('click', async () => {
+    const commentaire = window.prompt('Motif du rejet (obligatoire) :', '');
+    if (!commentaire) return;
+    try {
+      await api.rejeterExploitationDemande(demande.id, commentaire);
+      showToast('Demande rejetée.', 'success');
+      refresh();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('approuver-btn')?.addEventListener('click', async () => {
+    if (!confirm('Approuver cette demande ? Cette action exécutera immédiatement le mouvement et modifiera les actifs concernés.')) return;
+    const commentaire = window.prompt('Commentaire d\'approbation (optionnel) :', '') || '';
+    try {
+      await api.approuverDemande(demande.id, commentaire);
+      showToast('Demande approuvée et exécutée.', 'success');
       refresh();
     } catch (err) {
       showToast(err.message, 'error');
@@ -171,17 +201,6 @@ export async function renderDemandeDetail({ id }) {
     try {
       await api.annulerDemande(demande.id, motif);
       showToast('Demande annulée.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
-  document.getElementById('executer-btn')?.addEventListener('click', async () => {
-    if (!confirm('Exécuter cette demande maintenant ? Cette action modifiera immédiatement les actifs concernés.')) return;
-    try {
-      await api.executerDemande(demande.id);
-      showToast('Demande exécutée.', 'success');
       refresh();
     } catch (err) {
       showToast(err.message, 'error');

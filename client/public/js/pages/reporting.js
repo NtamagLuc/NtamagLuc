@@ -13,12 +13,11 @@ const COLORS = {
   EN_SERVICE: '#16a34a',
   EN_MAINTENANCE: '#d97706',
   EN_REPARATION: '#d97706',
-  EN_TRANSFERT: '#0891b2',
   HORS_SERVICE: '#6b7280',
   DECOMMISSIONNE: '#dc2626',
   REFORME: '#dc2626',
   EN_ATTENTE: '#d97706',
-  APPROUVEE: '#0891b2',
+  TRANSMISE: '#0891b2',
   REJETEE: '#dc2626',
   EXECUTEE: '#16a34a',
   ANNULEE: '#6b7280',
@@ -78,11 +77,11 @@ export async function renderReporting() {
       </div>
       <div class="stat-tile">
         <span class="stat-tile-value">${summary.totaux.performanceMoyenne}%</span>
-        <span class="stat-tile-label">Performance moyenne du parc</span>
+        <span class="stat-tile-label">Disponibilité moyenne du parc</span>
       </div>
       <div class="stat-tile">
         <span class="stat-tile-value">${formatNombre(summary.totaux.puissanceEffectiveTotale)} / ${formatNombre(summary.totaux.puissanceNominaleTotale)} MW</span>
-        <span class="stat-tile-label">Puissance effective / nominale</span>
+        <span class="stat-tile-label">Puissance disponible / installée</span>
       </div>
       <div class="stat-tile ${summary.totaux.nbCentralesEnAlerte ? 'stat-tile-alert' : ''}">
         <span class="stat-tile-value">${summary.totaux.nbCentralesEnAlerte}</span>
@@ -92,7 +91,7 @@ export async function renderReporting() {
 
     <div class="reporting-grid">
       <div class="reporting-panel">
-        <h2 class="section-title">Performance par centrale</h2>
+        <h2 class="section-title">Disponibilité par centrale</h2>
         <div class="centrale-perf-list">
           ${summary.centrales
             .map(

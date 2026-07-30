@@ -1,10 +1,13 @@
 import { db } from '../db.js';
 import { HttpError } from '../lib/miniweb.js';
 
+// Un actif ne contribue à la puissance disponible d'une centrale que lorsqu'il est
+// effectivement en service. En maintenance, en réparation, en transfert, hors service,
+// décommissionné ou réformé, il est considéré indisponible.
 const STATUT_WEIGHT = {
   EN_SERVICE: 1,
-  EN_MAINTENANCE: 0.5,
-  EN_REPARATION: 0.5,
+  EN_MAINTENANCE: 0,
+  EN_REPARATION: 0,
   EN_TRANSFERT: 0,
   HORS_SERVICE: 0,
   DECOMMISSIONNE: 0,
@@ -24,9 +27,14 @@ export function scoreFromActifs(actifs, capaciteNominaleMw) {
     0
   );
   const pct = capaciteNominaleMw > 0 ? (puissanceEffective / capaciteNominaleMw) * 100 : 0;
+  const disponibilitePct = round2(Math.min(100, Math.max(0, pct)));
   return {
+    // Puissance disponible = somme des contributions des actifs actuellement en service.
     puissanceEffectiveMw: round2(puissanceEffective),
-    performancePct: round2(Math.min(100, Math.max(0, pct))),
+    puissanceDisponibleMw: round2(puissanceEffective),
+    // Disponibilité = puissance disponible / puissance installée.
+    performancePct: disponibilitePct,
+    disponibilitePct,
     surcapacite: pct > 100,
   };
 }
@@ -43,7 +51,11 @@ export function computeCentralePerformance(centraleId) {
   const centrale = getCentrale(centraleId);
   if (!centrale) return null;
   const actifs = getCentraleActifs(centraleId);
-  return { centrale, ...scoreFromActifs(actifs, centrale.capacite_nominale_mw) };
+  return {
+    centrale,
+    puissanceInstalleeMw: centrale.capacite_nominale_mw,
+    ...scoreFromActifs(actifs, centrale.capacite_nominale_mw),
+  };
 }
 
 export function computeParcPerformance() {
@@ -56,10 +68,14 @@ export function computeParcPerformance() {
     effective += perf.puissanceEffectiveMw;
   }
   const pct = nominale > 0 ? (effective / nominale) * 100 : 0;
+  const disponibilitePct = round2(Math.min(100, Math.max(0, pct)));
   return {
     puissanceNominaleMw: round2(nominale),
+    puissanceInstalleeMw: round2(nominale),
     puissanceEffectiveMw: round2(effective),
-    performancePct: round2(Math.min(100, Math.max(0, pct))),
+    puissanceDisponibleMw: round2(effective),
+    performancePct: disponibilitePct,
+    disponibilitePct,
   };
 }
 

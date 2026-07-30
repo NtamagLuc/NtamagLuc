@@ -28,7 +28,7 @@ export function openCentraleFormModal({ onDone, centrale } = {}) {
       </label>
       <div class="field-row">
         <label class="field">
-          <span>Capacité nominale (MW)</span>
+          <span>Puissance installée (MW)</span>
           <input type="number" name="capaciteNominaleMw" required min="0" step="0.1" value="${isEdit ? centrale.capacite_nominale_mw : ''}" />
         </label>
         <label class="field">

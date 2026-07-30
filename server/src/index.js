@@ -41,6 +41,10 @@ const MIME_TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.csv': 'text/csv; charset=utf-8',
 };
 
 const clientDir = path.join(__dirname, '..', '..', 'client', 'public');

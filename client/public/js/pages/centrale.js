@@ -29,9 +29,11 @@ export async function renderCentraleDetail({ id }) {
     </div>
 
     <div class="centrale-summary">
-      ${gaugeHtml(centrale.performancePct, { size: 100 })}
+      ${gaugeHtml(centrale.disponibilitePct, { size: 100 })}
       <div class="centrale-summary-stats">
-        <div><span class="stat-label">Puissance effective</span><span class="stat-value">${formatNombre(centrale.puissanceEffectiveMw)} / ${formatNombre(centrale.capacite_nominale_mw)} MW</span></div>
+        <div><span class="stat-label">Puissance installée</span><span class="stat-value">${formatNombre(centrale.puissanceInstalleeMw)} MW</span></div>
+        <div><span class="stat-label">Puissance disponible</span><span class="stat-value">${formatNombre(centrale.puissanceDisponibleMw)} MW</span></div>
+        <div><span class="stat-label">Disponibilité</span><span class="stat-value">${centrale.disponibilitePct}%</span></div>
         <div><span class="stat-label">Actifs enregistrés</span><span class="stat-value">${centrale.actifs.length}</span></div>
         <div><span class="stat-label">Seuil d'alerte</span><span class="stat-value">${centrale.seuil_alerte_pct}%</span></div>
       </div>

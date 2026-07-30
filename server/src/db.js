@@ -88,7 +88,8 @@ db.exec(`
     nom TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     mot_de_passe_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'UTILISATEUR_CONSULTATION',
+    role TEXT NOT NULL DEFAULT 'RESPONSABLE_MECANIQUE',
+    centrale_id INTEGER REFERENCES centrales(id),
     actif INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -119,10 +120,15 @@ db.exec(`
     simulation_obsolete INTEGER NOT NULL DEFAULT 0,
     demandeur_id INTEGER NOT NULL REFERENCES utilisateurs(id),
     demandeur_nom TEXT NOT NULL,
-    validateur_id INTEGER REFERENCES utilisateurs(id),
-    validateur_nom TEXT,
-    commentaire_validation TEXT,
-    date_validation TEXT,
+    exploitation_id INTEGER REFERENCES utilisateurs(id),
+    exploitation_nom TEXT,
+    commentaire_exploitation TEXT,
+    date_exploitation TEXT,
+    approbateur_id INTEGER REFERENCES utilisateurs(id),
+    approbateur_nom TEXT,
+    commentaire_approbation TEXT,
+    date_approbation TEXT,
+    rejete_par TEXT,
     date_execution TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -168,6 +174,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notifications_utilisateur ON notifications(utilisateur_id);
   CREATE INDEX IF NOT EXISTS idx_audit_log_cible ON audit_log(cible_type, cible_id);
   CREATE INDEX IF NOT EXISTS idx_audit_log_centrale ON audit_log(centrale_id);
+  CREATE INDEX IF NOT EXISTS idx_utilisateurs_centrale ON utilisateurs(centrale_id);
 `);
 
 function seedIfEmpty() {
@@ -178,15 +185,16 @@ function seedIfEmpty() {
     ).run();
   }
 
+  let c1, c2, c3;
   const { count: nbCentrales } = db.prepare('SELECT COUNT(*) AS count FROM centrales').get();
   if (nbCentrales === 0) {
     const insertCentrale = db.prepare(`
       INSERT INTO centrales (code, nom, type, localisation, capacite_nominale_mw, seuil_alerte_pct, statut)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
     `);
-    const c1 = insertCentrale.run('CTH-DLA', 'Centrale Thermique de Douala', 'THERMIQUE', 'Douala', 250, 70).lastInsertRowid;
-    const c2 = insertCentrale.run('CHY-SGL', 'Barrage Hydroélectrique de Song Loulou', 'HYDRAULIQUE', 'Song Loulou', 400, 70).lastInsertRowid;
-    const c3 = insertCentrale.run('CSO-MRA', 'Centrale Solaire de Maroua', 'SOLAIRE', 'Maroua', 100, 65).lastInsertRowid;
+    c1 = insertCentrale.run('CTH-DLA', 'Centrale Thermique de Douala', 'THERMIQUE', 'Douala', 250, 70).lastInsertRowid;
+    c2 = insertCentrale.run('CHY-SGL', 'Barrage Hydroélectrique de Song Loulou', 'HYDRAULIQUE', 'Song Loulou', 400, 70).lastInsertRowid;
+    c3 = insertCentrale.run('CSO-MRA', 'Centrale Solaire de Maroua', 'SOLAIRE', 'Maroua', 100, 65).lastInsertRowid;
 
     const insertActif = db.prepare(`
       INSERT INTO actifs (code, nom, type, centrale_id, parent_id, statut, criticite, contribution_mw, fabricant, modele, numero_serie, date_installation, description)
@@ -219,20 +227,24 @@ function seedIfEmpty() {
     // Centrale 3 : équipements de premier niveau
     insertActif.run('CSO-MRA-CH-A', 'Champ photovoltaïque A', 'PANNEAU_SOLAIRE', c3, null, 'EN_SERVICE', 'MOYENNE', 45, 'Jinko Solar', 'Tiger Pro', 'SN-5001', '2020-11-01', 'Bloc A de 45 MWc');
     insertActif.run('CSO-MRA-OND01', 'Onduleur OND-01', 'ONDULEUR', c3, null, 'EN_SERVICE', 'HAUTE', 30, 'SMA', 'Sunny Central', 'SN-5010', '2020-11-01', null);
+  } else {
+    const rows = db.prepare('SELECT id, code FROM centrales').all();
+    c1 = rows.find((r) => r.code === 'CTH-DLA')?.id;
+    c2 = rows.find((r) => r.code === 'CHY-SGL')?.id;
+    c3 = rows.find((r) => r.code === 'CSO-MRA')?.id;
   }
 
   const { count: nbUsers } = db.prepare('SELECT COUNT(*) AS count FROM utilisateurs').get();
   if (nbUsers === 0) {
     const insertUser = db.prepare(`
-      INSERT INTO utilisateurs (nom, email, mot_de_passe_hash, role)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO utilisateurs (nom, email, mot_de_passe_hash, role, centrale_id)
+      VALUES (?, ?, ?, ?, ?)
     `);
-    insertUser.run('Alice Administrateur', 'admin@centrale.local', hashPassword('admin123'), 'ADMINISTRATEUR');
-    insertUser.run('Gustave Gestionnaire', 'gestionnaire@centrale.local', hashPassword('gestionnaire123'), 'GESTIONNAIRE_ACTIFS');
-    insertUser.run('Rachel Responsable Centrale', 'responsable.centrale@centrale.local', hashPassword('responsable123'), 'RESPONSABLE_CENTRALE');
-    insertUser.run('Paul Responsable Production', 'responsable.production@centrale.local', hashPassword('production123'), 'RESPONSABLE_PRODUCTION');
-    insertUser.run('Victor Validateur', 'validateur@centrale.local', hashPassword('validateur123'), 'VALIDATEUR');
-    insertUser.run('Camille Consultation', 'consultation@centrale.local', hashPassword('consultation123'), 'UTILISATEUR_CONSULTATION');
+    insertUser.run('Alice Administrateur', 'admin@centrale.local', hashPassword('admin123'), 'ADMINISTRATEUR', null);
+    insertUser.run('Marc Mécanique', 'mecanique@centrale.local', hashPassword('mecanique123'), 'RESPONSABLE_MECANIQUE', null);
+    insertUser.run('Élise Exploitation', 'exploitation@centrale.local', hashPassword('exploitation123'), 'RESPONSABLE_EXPLOITATION', null);
+    insertUser.run('Chef Centrale Douala', 'chef.douala@centrale.local', hashPassword('chefcentrale123'), 'CHEF_CENTRALE', c1);
+    insertUser.run('Chef Centrale Song Loulou', 'chef.songloulou@centrale.local', hashPassword('chefcentrale123'), 'CHEF_CENTRALE', c2);
   }
 }
 

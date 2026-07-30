@@ -1,16 +1,17 @@
 import { Router, HttpError } from '../lib/miniweb.js';
 import { db, withTransaction } from '../db.js';
-import { requireAuth, requireRole, ROLES_DEMANDEUR, ROLES_VALIDATION, ROLES_EXECUTION } from '../lib/auth.js';
 import {
-  simulerMiseHorsOuEnService,
-  simulerDeplacement,
-  getActifAvecDescendants,
-  classerNiveauImpact,
-  scoreFromActifs,
-  getCentraleActifs,
-} from '../services/performance.js';
+  requireAuth,
+  requireRole,
+  ROLES_DEMANDEUR,
+  ROLES_EXPLOITATION,
+  ROLES_APPROBATION_FINALE,
+  centraleScopeId,
+  requireCentraleAccess,
+} from '../lib/auth.js';
+import { simulerMiseHorsOuEnService, simulerDeplacement } from '../services/performance.js';
 import { insertMouvement } from '../services/mouvements.js';
-import { notifyUser, notifyRole } from '../lib/notifications.js';
+import { notifyUser, notifyRole, notifyChefsCentrale } from '../lib/notifications.js';
 import { logAudit } from '../lib/audit.js';
 
 export const demandesRouter = new Router();
@@ -24,10 +25,6 @@ const LIBELLES = {
   REMISE_EN_SERVICE: 'remise en service',
 };
 const EPSILON = 0.01;
-
-function round2(n) {
-  return Math.round(n * 100) / 100;
-}
 
 function simuler(type, actifId, { centraleDestId, etatCible, avecHierarchie } = {}) {
   if (type === 'DEPLACEMENT') return simulerDeplacement(actifId, centraleDestId, { avecHierarchie });
@@ -49,16 +46,30 @@ function verifierEligibilite(type, actif) {
   if (type === 'REMISE_EN_SERVICE' && actif.statut !== 'HORS_SERVICE') {
     throw new HttpError(409, `Seul un actif hors service peut faire l'objet d'une remise en service (statut actuel : ${actif.statut}).`);
   }
-  if (type === 'DEPLACEMENT' && ['DECOMMISSIONNE', 'REFORME', 'EN_TRANSFERT'].includes(actif.statut)) {
+  if (type === 'DEPLACEMENT' && ['DECOMMISSIONNE', 'REFORME'].includes(actif.statut)) {
     throw new HttpError(409, `"${actif.nom}" ne peut pas être déplacé dans son état actuel (${actif.statut}).`);
   }
 }
 
+function estSimulationObsolete(demande, simulationActuelle) {
+  const stockee = demande.simulation;
+  if (Math.abs(stockee.scoreSourceAvant - simulationActuelle.scoreSourceAvant) > EPSILON) return true;
+  if (demande.type === 'DEPLACEMENT' && Math.abs((stockee.scoreDestAvant ?? 0) - (simulationActuelle.scoreDestAvant ?? 0)) > EPSILON) {
+    return true;
+  }
+  return false;
+}
+
 demandesRouter.get('/', (req, res) => {
   const user = requireAuth(req);
+  const scope = centraleScopeId(user);
   const { statut, type, mine, actifId, centraleId } = req.query;
   const clauses = [];
   const params = [];
+  if (scope) {
+    clauses.push('centrale_source_id = ?');
+    params.push(scope);
+  }
   if (statut) {
     clauses.push('statut = ?');
     params.push(statut);
@@ -75,7 +86,7 @@ demandesRouter.get('/', (req, res) => {
     clauses.push('actif_id = ?');
     params.push(actifId);
   }
-  if (centraleId) {
+  if (centraleId && !scope) {
     clauses.push('(centrale_source_id = ? OR centrale_dest_id = ?)');
     params.push(centraleId, centraleId);
   }
@@ -123,10 +134,10 @@ demandesRouter.post('/', (req, res) => {
   verifierEligibilite(type, actif);
 
   const enCours = db
-    .prepare(`SELECT COUNT(*) AS n FROM demandes WHERE actif_id = ? AND statut IN ('EN_ATTENTE', 'APPROUVEE')`)
+    .prepare(`SELECT COUNT(*) AS n FROM demandes WHERE actif_id = ? AND statut IN ('EN_ATTENTE', 'TRANSMISE')`)
     .get(actifId).n;
   if (enCours > 0) {
-    throw new HttpError(409, 'Une demande est déjà en cours (en attente ou approuvée) pour cet actif');
+    throw new HttpError(409, 'Une demande est déjà en cours (en attente ou transmise) pour cet actif');
   }
 
   const hierarchie = avecHierarchie !== false;
@@ -162,10 +173,13 @@ demandesRouter.post('/', (req, res) => {
   const demande = deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(info.lastInsertRowid));
 
   const libelle = LIBELLES[type];
-  const suffixe = simulation.niveauImpact === 'CRITIQUE' ? ' [IMPACT CRITIQUE — validation Administrateur requise]' : '';
-  const message = `Nouvelle demande de ${libelle} pour "${actif.nom}" (par ${user.nom}) en attente de validation.${suffixe}`;
-  notifyRole('VALIDATEUR', 'DEMANDE_CREEE', message, `#/demandes/${demande.id}`);
-  notifyRole('ADMINISTRATEUR', 'DEMANDE_CREEE', message, `#/demandes/${demande.id}`);
+  const suffixe = simulation.niveauImpact === 'CRITIQUE' ? ' [IMPACT CRITIQUE]' : '';
+  notifyRole(
+    'RESPONSABLE_EXPLOITATION',
+    'DEMANDE_CREEE',
+    `Nouvelle demande de ${libelle} pour "${actif.nom}" (par ${user.nom}) à vérifier.${suffixe}`,
+    `#/demandes/${demande.id}`
+  );
   logAudit({
     type: 'DEMANDE_CREEE',
     description: `Demande de ${libelle} #${demande.id} créée pour "${actif.nom}" (impact estimé : ${simulation.niveauImpact})`,
@@ -179,9 +193,10 @@ demandesRouter.post('/', (req, res) => {
 });
 
 demandesRouter.get('/:id', (req, res) => {
-  requireAuth(req);
+  const user = requireAuth(req);
   const demande = deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id));
   if (!demande) return res.status(404).json({ error: 'Demande introuvable' });
+  requireCentraleAccess(user, demande.centrale_source_id);
 
   let simulationActuelle = null;
   let estObsolete = false;
@@ -191,12 +206,10 @@ demandesRouter.get('/:id', (req, res) => {
       etatCible: demande.etat_cible,
       avecHierarchie: demande.deplacer_hierarchie,
     });
-    estObsolete =
-      ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut) &&
-      estSimulationObsolete(demande, simulationActuelle, demande.statut === 'APPROUVEE' ? 'execution' : 'validation');
+    estObsolete = ['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut) && estSimulationObsolete(demande, simulationActuelle);
   } catch {
     simulationActuelle = null;
-    estObsolete = ['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut);
+    estObsolete = ['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut);
   }
 
   const mouvement = db.prepare('SELECT * FROM mouvements WHERE demande_id = ?').get(demande.id);
@@ -209,26 +222,6 @@ demandesRouter.get('/:id', (req, res) => {
   });
 });
 
-// Détecte si la situation a changé depuis le calcul de la simulation stockée sur la demande.
-//
-// Cas particulier du déplacement : l'approbation fait passer l'actif à l'état EN_TRANSFERT
-// (poids de performance nul), ce qui modifierait artificiellement la "situation avant" côté
-// source si on la recomparait telle quelle. Au stade "execution", on ne compare donc que la
-// situation de la centrale de destination (non touchée par notre propre mutation d'état).
-function estSimulationObsolete(demande, simulationActuelle, stade = 'validation') {
-  const stockee = demande.simulation;
-
-  if (demande.type === 'DEPLACEMENT' && stade === 'execution') {
-    return Math.abs((stockee.scoreDestAvant ?? 0) - (simulationActuelle.scoreDestAvant ?? 0)) > EPSILON;
-  }
-
-  if (Math.abs(stockee.scoreSourceAvant - simulationActuelle.scoreSourceAvant) > EPSILON) return true;
-  if (demande.type === 'DEPLACEMENT' && Math.abs((stockee.scoreDestAvant ?? 0) - (simulationActuelle.scoreDestAvant ?? 0)) > EPSILON) {
-    return true;
-  }
-  return false;
-}
-
 demandesRouter.post('/:id/annuler', (req, res) => {
   const user = requireAuth(req);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
@@ -236,18 +229,12 @@ demandesRouter.post('/:id/annuler', (req, res) => {
   if (demande.demandeur_id !== user.id && user.role !== 'ADMINISTRATEUR') {
     throw new HttpError(403, "Seul l'auteur de la demande (ou un administrateur) peut l'annuler");
   }
-  if (!['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)) {
+  if (!['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut)) {
     throw new HttpError(400, 'Cette demande a déjà été exécutée, rejetée ou annulée');
   }
   if (!req.body?.motif) throw new HttpError(400, "Le motif de l'annulation est requis");
 
-  withTransaction(() => {
-    if (demande.statut === 'APPROUVEE' && demande.type === 'DEPLACEMENT') {
-      restaurerEtatAvantTransfert(demande);
-    }
-    db.prepare("UPDATE demandes SET statut = 'ANNULEE', updated_at = datetime('now') WHERE id = ?").run(demande.id);
-  });
-
+  db.prepare("UPDATE demandes SET statut = 'ANNULEE', updated_at = datetime('now') WHERE id = ?").run(demande.id);
   logAudit({
     type: 'DEMANDE_ANNULEE',
     description: `Demande #${demande.id} (${demande.type}) annulée : ${req.body.motif}`,
@@ -263,18 +250,9 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
   const user = requireAuth(req);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
-  if (demande.demandeur_id !== user.id && !ROLES_VALIDATION.includes(user.role)) {
-    throw new HttpError(403, "Seul l'auteur de la demande ou un validateur peut relancer la simulation");
-  }
-  if (!['EN_ATTENTE', 'APPROUVEE'].includes(demande.statut)) {
+  if (!['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut)) {
     throw new HttpError(400, 'Cette demande ne peut plus être resimulée (déjà exécutée, rejetée ou annulée)');
   }
-
-  withTransaction(() => {
-    if (demande.statut === 'APPROUVEE' && demande.type === 'DEPLACEMENT') {
-      restaurerEtatAvantTransfert(demande);
-    }
-  });
 
   const simulation = simuler(demande.type, demande.actif_id, {
     centraleDestId: demande.centrale_dest_id,
@@ -284,11 +262,16 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
 
   db.prepare(
     `UPDATE demandes SET statut = 'EN_ATTENTE', simulation = ?, niveau_impact = ?, simulation_obsolete = 0,
-     validateur_id = NULL, validateur_nom = NULL, commentaire_validation = NULL, date_validation = NULL,
+     exploitation_id = NULL, exploitation_nom = NULL, commentaire_exploitation = NULL, date_exploitation = NULL,
      updated_at = datetime('now') WHERE id = ?`
   ).run(JSON.stringify(simulation), simulation.niveauImpact, demande.id);
 
-  notifyRole('VALIDATEUR', 'SIMULATION_RELANCEE', `La simulation de la demande #${demande.id} (${LIBELLES[demande.type]} — "${demande.actif_nom}") a été actualisée et nécessite une nouvelle validation.`, `#/demandes/${demande.id}`);
+  notifyRole(
+    'RESPONSABLE_EXPLOITATION',
+    'SIMULATION_RELANCEE',
+    `La simulation de la demande #${demande.id} (${LIBELLES[demande.type]} — "${demande.actif_nom}") a été actualisée et doit être revérifiée.`,
+    `#/demandes/${demande.id}`
+  );
   logAudit({
     type: 'SIMULATION_RELANCEE',
     description: `Simulation de la demande #${demande.id} relancée, retour au statut EN_ATTENTE`,
@@ -301,18 +284,14 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
   res.json(deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(demande.id)));
 });
 
-demandesRouter.post('/:id/valider', (req, res) => {
-  const user = requireRole(req, ROLES_VALIDATION);
+// --- Étape 2 : Responsable Exploitation vérifie la pertinence ---
+
+demandesRouter.post('/:id/transmettre', (req, res) => {
+  const user = requireRole(req, ROLES_EXPLOITATION);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
   if (demande.statut !== 'EN_ATTENTE') {
-    throw new HttpError(400, 'Seule une demande en attente peut être approuvée');
-  }
-  if (demande.demandeur_id === user.id) {
-    throw new HttpError(403, 'Vous ne pouvez pas valider votre propre demande');
-  }
-  if (demande.niveau_impact === 'CRITIQUE' && user.role !== 'ADMINISTRATEUR') {
-    throw new HttpError(403, "Cette demande a un niveau d'impact critique : seul un Administrateur peut l'approuver");
+    throw new HttpError(400, 'Seule une demande en attente peut être transmise');
   }
 
   const simulationActuelle = simuler(demande.type, demande.actif_id, {
@@ -322,33 +301,22 @@ demandesRouter.post('/:id/valider', (req, res) => {
   });
   if (estSimulationObsolete(deserializeDemande(demande), simulationActuelle)) {
     db.prepare('UPDATE demandes SET simulation_obsolete = 1 WHERE id = ?').run(demande.id);
-    throw new HttpError(409, "La situation a changé depuis la création de la demande : la simulation est obsolète. Relancez la simulation avant de valider.");
+    throw new HttpError(409, "La situation a changé depuis la création de la demande : la simulation est obsolète. Relancez la simulation avant de transmettre.");
   }
 
-  withTransaction(() => {
-    db.prepare(
-      `UPDATE demandes SET statut = 'APPROUVEE', validateur_id = ?, validateur_nom = ?, commentaire_validation = ?, date_validation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
-    ).run(user.id, user.nom, req.body?.commentaire || null, demande.id);
+  db.prepare(
+    `UPDATE demandes SET statut = 'TRANSMISE', exploitation_id = ?, exploitation_nom = ?, commentaire_exploitation = ?, date_exploitation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+  ).run(user.id, user.nom, req.body?.commentaire || null, demande.id);
 
-    if (demande.type === 'DEPLACEMENT') {
-      const descendants = deserializeDemande(demande).deplacer_hierarchie
-        ? simulationActuelle.descendants
-        : [simulationActuelle.actif];
-      for (const a of descendants) {
-        db.prepare("UPDATE actifs SET etat_avant_transfert = ?, statut = 'EN_TRANSFERT', updated_at = datetime('now') WHERE id = ?").run(a.statut, a.id);
-      }
-    }
-  });
-
-  notifyUser(
-    demande.demandeur_id,
-    'DEMANDE_APPROUVEE',
-    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été approuvée par ${user.nom}. Elle est prête à être exécutée.`,
-    `#/demandes/${demande.id}`
-  );
+  const libelle = LIBELLES[demande.type];
+  const suffixe = demande.niveau_impact === 'CRITIQUE' ? ' [IMPACT CRITIQUE — approbation Administrateur requise]' : '';
+  const message = `Demande de ${libelle} pour "${demande.actif_nom}" transmise par ${user.nom}, en attente de votre approbation.${suffixe}`;
+  notifyChefsCentrale(demande.centrale_source_id, 'DEMANDE_TRANSMISE', message, `#/demandes/${demande.id}`);
+  notifyRole('ADMINISTRATEUR', 'DEMANDE_TRANSMISE', message, `#/demandes/${demande.id}`);
+  notifyUser(demande.demandeur_id, 'DEMANDE_TRANSMISE', `Votre demande de ${libelle} pour "${demande.actif_nom}" a été transmise au Chef Centrale par ${user.nom}.`, `#/demandes/${demande.id}`);
   logAudit({
-    type: 'DEMANDE_APPROUVEE',
-    description: `Demande #${demande.id} (${demande.type}) approuvée`,
+    type: 'DEMANDE_TRANSMISE',
+    description: `Demande #${demande.id} (${demande.type}) transmise au Chef Centrale par ${user.nom}`,
     acteur: user,
     cibleType: 'DEMANDE',
     cibleId: demande.id,
@@ -358,33 +326,28 @@ demandesRouter.post('/:id/valider', (req, res) => {
   res.json(deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(demande.id)));
 });
 
-demandesRouter.post('/:id/rejeter', (req, res) => {
-  const user = requireRole(req, ROLES_VALIDATION);
+demandesRouter.post('/:id/rejeter-exploitation', (req, res) => {
+  const user = requireRole(req, ROLES_EXPLOITATION);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
   if (demande.statut !== 'EN_ATTENTE') {
-    throw new HttpError(400, 'Seule une demande en attente peut être rejetée');
+    throw new HttpError(400, 'Seule une demande en attente peut être rejetée à ce stade');
   }
-  if (demande.demandeur_id === user.id) {
-    throw new HttpError(403, 'Vous ne pouvez pas rejeter votre propre demande');
-  }
-  if (!req.body?.commentaire) {
-    throw new HttpError(400, 'Un motif de rejet est requis');
-  }
+  if (!req.body?.commentaire) throw new HttpError(400, 'Un motif de rejet est requis');
 
   db.prepare(
-    `UPDATE demandes SET statut = 'REJETEE', validateur_id = ?, validateur_nom = ?, commentaire_validation = ?, date_validation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+    `UPDATE demandes SET statut = 'REJETEE', rejete_par = 'EXPLOITATION', exploitation_id = ?, exploitation_nom = ?, commentaire_exploitation = ?, date_exploitation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
   ).run(user.id, user.nom, req.body.commentaire, demande.id);
 
   notifyUser(
     demande.demandeur_id,
     'DEMANDE_REJETEE',
-    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été rejetée par ${user.nom} : ${req.body.commentaire}`,
+    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été rejetée par ${user.nom} (Exploitation) : ${req.body.commentaire}`,
     `#/demandes/${demande.id}`
   );
   logAudit({
     type: 'DEMANDE_REJETEE',
-    description: `Demande #${demande.id} (${demande.type}) rejetée : ${req.body.commentaire}`,
+    description: `Demande #${demande.id} (${demande.type}) rejetée par l'Exploitation : ${req.body.commentaire}`,
     acteur: user,
     cibleType: 'DEMANDE',
     cibleId: demande.id,
@@ -394,13 +357,19 @@ demandesRouter.post('/:id/rejeter', (req, res) => {
   res.json(deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(demande.id)));
 });
 
-demandesRouter.post('/:id/executer', (req, res) => {
-  const user = requireRole(req, ROLES_EXECUTION);
+// --- Étape 3 : Chef Centrale approuve (= exécution immédiate) ou rejette ---
+
+demandesRouter.post('/:id/approuver', (req, res) => {
+  const user = requireRole(req, ROLES_APPROBATION_FINALE);
   const demandeRaw = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demandeRaw) throw new HttpError(404, 'Demande introuvable');
   const demande = deserializeDemande(demandeRaw);
-  if (demande.statut !== 'APPROUVEE') {
-    throw new HttpError(400, 'Seule une demande approuvée peut être exécutée');
+  if (demande.statut !== 'TRANSMISE') {
+    throw new HttpError(400, 'Seule une demande transmise par l\'Exploitation peut être approuvée');
+  }
+  requireCentraleAccess(user, demande.centrale_source_id);
+  if (demande.niveau_impact === 'CRITIQUE' && user.role !== 'ADMINISTRATEUR') {
+    throw new HttpError(403, "Cette demande a un niveau d'impact critique : seul un Administrateur peut l'approuver");
   }
 
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(demande.actif_id);
@@ -411,9 +380,9 @@ demandesRouter.post('/:id/executer', (req, res) => {
     etatCible: demande.etat_cible,
     avecHierarchie: demande.deplacer_hierarchie,
   });
-  if (estSimulationObsolete(demande, simulationActuelle, 'execution')) {
+  if (estSimulationObsolete(demande, simulationActuelle)) {
     db.prepare('UPDATE demandes SET simulation_obsolete = 1 WHERE id = ?').run(demande.id);
-    throw new HttpError(409, "La situation a changé depuis la validation : la simulation est obsolète. Relancez la simulation (ce qui annulera l'approbation en cours et nécessitera une nouvelle validation) avant de réexécuter.");
+    throw new HttpError(409, "La situation a changé depuis la transmission : la simulation est obsolète. Relancez la simulation avant d'approuver.");
   }
 
   const descendants = demande.deplacer_hierarchie || demande.type !== 'DEPLACEMENT'
@@ -422,41 +391,10 @@ demandesRouter.post('/:id/executer', (req, res) => {
   const descendantIds = descendants.map((d) => d.id);
   const placeholders = descendantIds.map(() => '?').join(',');
 
-  // Pour un déplacement, l'actif a été placé en EN_TRANSFERT (poids de performance nul) dès
-  // l'approbation. Un recalcul en direct à ce stade sous-évaluerait donc à la fois la situation
-  // "avant" côté source (l'actif y apparaît déjà à poids nul) et la situation "après" côté
-  // destination (les descendants transférés y apparaissent aussi à poids nul). On réutilise le
-  // score source de la simulation d'origine (toujours valide, vérifié ci-dessus au stade
-  // execution), et on recalcule le score destination "après" en substituant à chaque actif
-  // transféré son état d'avant transfert.
-  let scoreSourceAvant = simulationActuelle.scoreSourceAvant;
-  let scoreSourceApres = simulationActuelle.scoreSourceApres;
-  let scoreDestApres = simulationActuelle.scoreDestApres;
-  let niveauImpact = simulationActuelle.niveauImpact;
-
-  if (demande.type === 'DEPLACEMENT') {
-    scoreSourceAvant = demande.simulation.scoreSourceAvant;
-    scoreSourceApres = demande.simulation.scoreSourceApres;
-
-    const actifsDestActuels = getCentraleActifs(simulationActuelle.centraleDest.id);
-    const descendantsEtatRestaure = descendants.map((d) => ({ ...d, statut: d.etat_avant_transfert || 'EN_SERVICE' }));
-    scoreDestApres = scoreFromActifs(
-      [...actifsDestActuels, ...descendantsEtatRestaure],
-      simulationActuelle.centraleDest.capacite_nominale_mw
-    ).performancePct;
-
-    niveauImpact = classerNiveauImpact(
-      Math.max(
-        Math.abs(round2(scoreSourceAvant - scoreSourceApres)),
-        Math.abs(round2(simulationActuelle.scoreDestAvant - scoreDestApres))
-      )
-    );
-  }
-
   const mouvement = withTransaction(() => {
     if (demande.type === 'DEPLACEMENT') {
       db.prepare(
-        `UPDATE actifs SET centrale_id = ?, statut = COALESCE(etat_avant_transfert, 'EN_SERVICE'), etat_avant_transfert = NULL, updated_at = datetime('now') WHERE id IN (${placeholders})`
+        `UPDATE actifs SET centrale_id = ?, updated_at = datetime('now') WHERE id IN (${placeholders})`
       ).run(demande.centrale_dest_id, ...descendantIds);
     } else if (demande.type === 'REMISE_EN_SERVICE') {
       db.prepare("UPDATE actifs SET statut = 'EN_SERVICE', updated_at = datetime('now') WHERE id = ?").run(actif.id);
@@ -474,20 +412,20 @@ demandesRouter.post('/:id/executer', (req, res) => {
       type: demande.type,
       centraleSource: simulationActuelle.centraleSource,
       centraleDest: simulationActuelle.centraleDest,
-      scoreSourceAvant,
-      scoreSourceApres,
+      scoreSourceAvant: simulationActuelle.scoreSourceAvant,
+      scoreSourceApres: simulationActuelle.scoreSourceApres,
       scoreDestAvant: simulationActuelle.scoreDestAvant,
-      scoreDestApres,
+      scoreDestApres: simulationActuelle.scoreDestApres,
       nbActifsImpactes: descendants.length,
-      niveauImpact,
+      niveauImpact: simulationActuelle.niveauImpact,
       alertes: simulationActuelle.alertes,
       commentaire: demande.motif,
       executeur: user,
     });
 
     db.prepare(
-      `UPDATE demandes SET statut = 'EXECUTEE', date_execution = datetime('now'), updated_at = datetime('now') WHERE id = ?`
-    ).run(demande.id);
+      `UPDATE demandes SET statut = 'EXECUTEE', approbateur_id = ?, approbateur_nom = ?, commentaire_approbation = ?, date_approbation = datetime('now'), date_execution = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+    ).run(user.id, user.nom, req.body?.commentaire || null, demande.id);
 
     return m;
   });
@@ -495,12 +433,20 @@ demandesRouter.post('/:id/executer', (req, res) => {
   notifyUser(
     demande.demandeur_id,
     'DEMANDE_EXECUTEE',
-    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été exécutée par ${user.nom}. Performances recalculées.`,
+    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été approuvée et exécutée par ${user.nom}.`,
     `#/demandes/${demande.id}`
   );
+  if (demande.exploitation_id) {
+    notifyUser(
+      demande.exploitation_id,
+      'DEMANDE_EXECUTEE',
+      `La demande #${demande.id} (${LIBELLES[demande.type]} — "${demande.actif_nom}") que vous avez transmise a été approuvée et exécutée par ${user.nom}.`,
+      `#/demandes/${demande.id}`
+    );
+  }
   logAudit({
     type: 'DEMANDE_EXECUTEE',
-    description: `Demande #${demande.id} (${demande.type}) exécutée`,
+    description: `Demande #${demande.id} (${demande.type}) approuvée et exécutée par ${user.nom}`,
     acteur: user,
     cibleType: 'DEMANDE',
     cibleId: demande.id,
@@ -510,11 +456,42 @@ demandesRouter.post('/:id/executer', (req, res) => {
   res.json({ demande: deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(demande.id)), mouvement });
 });
 
-function restaurerEtatAvantTransfert(demande) {
-  const descendants = getActifAvecDescendants(demande.actif_id);
-  for (const a of descendants) {
-    if (a.statut === 'EN_TRANSFERT' && a.etat_avant_transfert) {
-      db.prepare("UPDATE actifs SET statut = ?, etat_avant_transfert = NULL, updated_at = datetime('now') WHERE id = ?").run(a.etat_avant_transfert, a.id);
-    }
+demandesRouter.post('/:id/rejeter', (req, res) => {
+  const user = requireRole(req, ROLES_APPROBATION_FINALE);
+  const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
+  if (!demande) throw new HttpError(404, 'Demande introuvable');
+  if (demande.statut !== 'TRANSMISE') {
+    throw new HttpError(400, 'Seule une demande transmise peut être rejetée à ce stade');
   }
-}
+  requireCentraleAccess(user, demande.centrale_source_id);
+  if (!req.body?.commentaire) throw new HttpError(400, 'Un motif de rejet est requis');
+
+  db.prepare(
+    `UPDATE demandes SET statut = 'REJETEE', rejete_par = 'CENTRALE', approbateur_id = ?, approbateur_nom = ?, commentaire_approbation = ?, date_approbation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+  ).run(user.id, user.nom, req.body.commentaire, demande.id);
+
+  notifyUser(
+    demande.demandeur_id,
+    'DEMANDE_REJETEE',
+    `Votre demande de ${LIBELLES[demande.type]} pour "${demande.actif_nom}" a été rejetée par ${user.nom} (Chef Centrale) : ${req.body.commentaire}`,
+    `#/demandes/${demande.id}`
+  );
+  if (demande.exploitation_id) {
+    notifyUser(
+      demande.exploitation_id,
+      'DEMANDE_REJETEE',
+      `La demande #${demande.id} que vous avez transmise a été rejetée par ${user.nom} (Chef Centrale) : ${req.body.commentaire}`,
+      `#/demandes/${demande.id}`
+    );
+  }
+  logAudit({
+    type: 'DEMANDE_REJETEE',
+    description: `Demande #${demande.id} (${demande.type}) rejetée par le Chef Centrale : ${req.body.commentaire}`,
+    acteur: user,
+    cibleType: 'DEMANDE',
+    cibleId: demande.id,
+    centraleId: demande.centrale_source_id,
+  });
+
+  res.json(deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(demande.id)));
+});

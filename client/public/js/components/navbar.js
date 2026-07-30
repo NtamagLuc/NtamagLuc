@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { getCurrentUser, logout, isAdmin, canValidate } from '../auth.js';
+import { getCurrentUser, logout, isAdmin } from '../auth.js';
 import { escapeHtml, ROLE_LABELS, formatDate } from '../utils.js';
 import { refresh } from '../router.js';
 
@@ -37,50 +37,55 @@ function isActive(path) {
 }
 
 export async function renderNavbar() {
-  const root = document.getElementById('topbar-root');
+  const root = document.getElementById('sidebar-root');
   const user = getCurrentUser();
 
   if (!user) {
     root.innerHTML = '';
+    document.body.classList.remove('has-sidebar');
     return;
   }
+  document.body.classList.add('has-sidebar');
 
   await refreshNotifications();
   startPolling();
 
   const links = [
-    { path: '/', label: 'Tableau de bord' },
-    { path: '/demandes', label: 'Demandes' },
-    { path: '/historique', label: 'Historique' },
-    { path: '/reporting', label: 'Reporting' },
+    { path: '/', label: 'Tableau de bord', icon: '🏠' },
+    { path: '/demandes', label: 'Demandes', icon: '📋' },
+    { path: '/historique', label: 'Historique', icon: '🕘' },
+    { path: '/reporting', label: 'Reporting', icon: '📊' },
   ];
   if (isAdmin()) {
-    links.push({ path: '/utilisateurs', label: 'Utilisateurs' });
-    links.push({ path: '/parametres', label: 'Paramètres' });
+    links.push({ path: '/utilisateurs', label: 'Utilisateurs', icon: '👥' });
+    links.push({ path: '/parametres', label: 'Paramètres', icon: '⚙️' });
   }
 
   root.innerHTML = `
-    <div class="topbar">
-      <a class="brand" href="#/">⚡ Gestion des actifs de centrales</a>
-      <nav class="topnav">
-        ${links
-          .map((l) => `<a href="#${l.path}" class="${isActive(l.path) ? 'active' : ''}">${l.label}</a>`)
-          .join('')}
-      </nav>
-      <div class="topbar-right">
-        <div class="notif-wrapper">
-          <button class="notif-bell" id="notif-bell" aria-label="Notifications">
-            🔔
-            <span class="notif-badge" id="notif-badge" style="display:none;"></span>
-          </button>
-          <div class="notif-dropdown" id="notif-dropdown" style="display:none;"></div>
-        </div>
-        <div class="user-chip">
-          <span class="user-nom">${escapeHtml(user.nom)}</span>
-          <span class="badge badge-neutral">${ROLE_LABELS[user.role] || user.role}</span>
-        </div>
-        <button class="btn btn-ghost btn-sm" id="logout-btn">Déconnexion</button>
+    <div class="sidebar-brand">
+      <img src="/assets/socadel-logo.jpeg" alt="SOCAD'EL" class="sidebar-logo" />
+    </div>
+    <nav class="sidebar-nav">
+      ${links
+        .map(
+          (l) =>
+            `<a href="#${l.path}" class="sidebar-link ${isActive(l.path) ? 'active' : ''}"><span class="sidebar-icon">${l.icon}</span>${l.label}</a>`
+        )
+        .join('')}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="notif-wrapper">
+        <button class="sidebar-link notif-bell-link" id="notif-bell" aria-label="Notifications">
+          <span class="sidebar-icon">🔔</span>Notifications
+          <span class="notif-badge" id="notif-badge" style="display:none;"></span>
+        </button>
+        <div class="notif-dropdown" id="notif-dropdown" style="display:none;"></div>
       </div>
+      <div class="user-chip">
+        <span class="user-nom">${escapeHtml(user.nom)}</span>
+        <span class="badge badge-neutral">${ROLE_LABELS[user.role] || user.role}</span>
+      </div>
+      <button class="btn btn-ghost btn-sm sidebar-logout" id="logout-btn">Déconnexion</button>
     </div>
   `;
 

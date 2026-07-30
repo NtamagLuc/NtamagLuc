@@ -1,16 +1,21 @@
-import { Router } from '../lib/miniweb.js';
+import { Router, HttpError } from '../lib/miniweb.js';
 import { db } from '../db.js';
 import { computeCentralePerformance } from '../services/performance.js';
-import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL } from '../lib/auth.js';
+import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL, centraleScopeId, requireCentraleAccess } from '../lib/auth.js';
 import { logAudit, diffChamps } from '../lib/audit.js';
+import { sendCsv, parseCsv } from '../lib/csv.js';
 
 export const centralesRouter = new Router();
 
 const CHAMPS_MODIFIABLES = ['nom', 'type', 'localisation', 'capacite_nominale_mw', 'seuil_alerte_pct', 'statut'];
+const TYPES_VALIDES = ['THERMIQUE', 'HYDRAULIQUE', 'NUCLEAIRE', 'SOLAIRE', 'EOLIEN'];
 
 centralesRouter.get('/', (req, res) => {
-  requireAuth(req);
-  const centrales = db.prepare('SELECT * FROM centrales ORDER BY nom').all();
+  const user = requireAuth(req);
+  const scope = centraleScopeId(user);
+  const centrales = scope
+    ? db.prepare('SELECT * FROM centrales WHERE id = ? ORDER BY nom').all(scope)
+    : db.prepare('SELECT * FROM centrales ORDER BY nom').all();
   const result = centrales.map((c) => {
     const { centrale, ...perf } = computeCentralePerformance(c.id);
     const nbActifs = db
@@ -48,8 +53,75 @@ centralesRouter.post('/', (req, res) => {
   res.status(201).json(centrale);
 });
 
+const EXPORT_COLUMNS = [
+  { key: 'code', label: 'code' },
+  { key: 'nom', label: 'nom' },
+  { key: 'type', label: 'type' },
+  { key: 'localisation', label: 'localisation' },
+  { key: 'capacite_nominale_mw', label: 'puissance_installee_mw' },
+  { key: 'seuil_alerte_pct', label: 'seuil_alerte_pct' },
+  { key: 'statut', label: 'statut' },
+];
+
+centralesRouter.get('/export', (req, res) => {
+  requireRole(req, ROLES_GESTION_REFERENTIEL);
+  const centrales = db.prepare('SELECT * FROM centrales ORDER BY code').all();
+  sendCsv(res, 'centrales.csv', centrales, EXPORT_COLUMNS);
+});
+
+centralesRouter.post('/import', (req, res) => {
+  const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
+  const rows = parseCsv(req.body?.csv);
+  if (!rows.length) throw new HttpError(400, 'Fichier CSV vide ou illisible');
+
+  let crees = 0;
+  let misAJour = 0;
+  const erreurs = [];
+
+  rows.forEach((row, idx) => {
+    const ligne = idx + 2; // +1 en-tête, +1 index 0-based
+    const code = row.code?.trim();
+    const nom = row.nom?.trim();
+    if (!code || !nom) {
+      erreurs.push(`Ligne ${ligne} : code et nom sont requis`);
+      return;
+    }
+    const type = TYPES_VALIDES.includes(row.type) ? row.type : 'THERMIQUE';
+    const puissance = Number(row.puissance_installee_mw ?? row.capacite_nominale_mw);
+    if (!Number.isFinite(puissance) || puissance < 0) {
+      erreurs.push(`Ligne ${ligne} (${code}) : puissance_installee_mw invalide`);
+      return;
+    }
+    const seuil = Number(row.seuil_alerte_pct);
+    const statut = row.statut === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    const existante = db.prepare('SELECT id FROM centrales WHERE code = ?').get(code);
+    if (existante) {
+      db.prepare(
+        `UPDATE centrales SET nom = ?, type = ?, localisation = ?, capacite_nominale_mw = ?, seuil_alerte_pct = ?, statut = ? WHERE id = ?`
+      ).run(nom, type, row.localisation || null, puissance, Number.isFinite(seuil) ? seuil : 70, statut, existante.id);
+      misAJour++;
+    } else {
+      db.prepare(
+        `INSERT INTO centrales (code, nom, type, localisation, capacite_nominale_mw, seuil_alerte_pct, statut, cree_par_id, cree_par_nom)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(code, nom, type, row.localisation || null, puissance, Number.isFinite(seuil) ? seuil : 70, statut, user.id, user.nom);
+      crees++;
+    }
+  });
+
+  logAudit({
+    type: 'CENTRALES_IMPORTEES',
+    description: `Import CSV centrales : ${crees} créée(s), ${misAJour} mise(s) à jour, ${erreurs.length} erreur(s)`,
+    acteur: user,
+  });
+
+  res.json({ crees, misAJour, erreurs });
+});
+
 centralesRouter.get('/:id', (req, res) => {
-  requireAuth(req);
+  const user = requireAuth(req);
+  requireCentraleAccess(user, req.params.id);
   const centrale = db.prepare('SELECT * FROM centrales WHERE id = ?').get(req.params.id);
   if (!centrale) return res.status(404).json({ error: 'Centrale introuvable' });
   const { centrale: _c, ...perf } = computeCentralePerformance(centrale.id);
