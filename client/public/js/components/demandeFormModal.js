@@ -159,11 +159,11 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
 
       if (type === 'DEPLACEMENT') {
         const select = dialog.querySelector('#centrale-dest');
-        const centrales = await api.getCentrales();
-        const autres = centrales.filter((c) => c.id !== actif.centrale_id && c.statut === 'ACTIVE');
+        const centrales = await api.getCentraleDestinations();
+        const autres = centrales.filter((c) => c.id !== actif.centrale_id);
         select.innerHTML = autres.length
           ? '<option value="">Sélectionner une centrale…</option>' +
-            autres.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)} (${c.performancePct}%)</option>`).join('')
+            autres.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join('')
           : '<option value="">Aucune autre centrale active disponible</option>';
         select.addEventListener('change', () => {
           centraleDestId = select.value ? Number(select.value) : null;

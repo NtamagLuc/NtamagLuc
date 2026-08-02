@@ -12,11 +12,12 @@ export function notifyRole(role, type, message, lien = null) {
   ).run(role, type, message, lien);
 }
 
-// Notifie individuellement chaque Chef Centrale rattaché à une centrale donnée
-// (role_cible ne suffit pas ici puisque ce rôle est cantonné à une centrale précise).
-export function notifyChefsCentrale(centraleId, type, message, lien = null) {
-  const chefs = db
-    .prepare("SELECT id FROM utilisateurs WHERE role = 'CHEF_CENTRALE' AND centrale_id = ? AND actif = 1")
-    .all(centraleId);
-  for (const chef of chefs) notifyUser(chef.id, type, message, lien);
+// Notifie individuellement chaque utilisateur d'un rôle cantonné à une centrale donnée
+// (role_cible seul ne suffit pas ici puisque ces rôles sont rattachés à une centrale précise :
+// CHEF_CENTRALE, RESPONSABLE_MECANIQUE, RESPONSABLE_EXPLOITATION).
+export function notifyRoleCentrale(role, centraleId, type, message, lien = null) {
+  const utilisateurs = db
+    .prepare('SELECT id FROM utilisateurs WHERE role = ? AND centrale_id = ? AND actif = 1')
+    .all(role, centraleId);
+  for (const u of utilisateurs) notifyUser(u.id, type, message, lien);
 }

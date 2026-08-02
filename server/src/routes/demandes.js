@@ -11,7 +11,7 @@ import {
 } from '../lib/auth.js';
 import { simulerMiseHorsOuEnService, simulerDeplacement } from '../services/performance.js';
 import { insertMouvement } from '../services/mouvements.js';
-import { notifyUser, notifyRole, notifyChefsCentrale } from '../lib/notifications.js';
+import { notifyUser, notifyRole, notifyRoleCentrale } from '../lib/notifications.js';
 import { logAudit } from '../lib/audit.js';
 
 export const demandesRouter = new Router();
@@ -131,6 +131,7 @@ demandesRouter.post('/', (req, res) => {
 
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(actifId);
   if (!actif) throw new HttpError(404, 'Actif introuvable');
+  requireCentraleAccess(user, actif.centrale_id);
   verifierEligibilite(type, actif);
 
   const enCours = db
@@ -174,8 +175,9 @@ demandesRouter.post('/', (req, res) => {
 
   const libelle = LIBELLES[type];
   const suffixe = simulation.niveauImpact === 'CRITIQUE' ? ' [IMPACT CRITIQUE]' : '';
-  notifyRole(
+  notifyRoleCentrale(
     'RESPONSABLE_EXPLOITATION',
+    actif.centrale_id,
     'DEMANDE_CREEE',
     `Nouvelle demande de ${libelle} pour "${actif.nom}" (par ${user.nom}) à vérifier.${suffixe}`,
     `#/demandes/${demande.id}`
@@ -250,6 +252,7 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
   const user = requireAuth(req);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
+  requireCentraleAccess(user, demande.centrale_source_id);
   if (!['EN_ATTENTE', 'TRANSMISE'].includes(demande.statut)) {
     throw new HttpError(400, 'Cette demande ne peut plus être resimulée (déjà exécutée, rejetée ou annulée)');
   }
@@ -266,8 +269,9 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
      updated_at = datetime('now') WHERE id = ?`
   ).run(JSON.stringify(simulation), simulation.niveauImpact, demande.id);
 
-  notifyRole(
+  notifyRoleCentrale(
     'RESPONSABLE_EXPLOITATION',
+    demande.centrale_source_id,
     'SIMULATION_RELANCEE',
     `La simulation de la demande #${demande.id} (${LIBELLES[demande.type]} — "${demande.actif_nom}") a été actualisée et doit être revérifiée.`,
     `#/demandes/${demande.id}`
@@ -290,6 +294,7 @@ demandesRouter.post('/:id/transmettre', (req, res) => {
   const user = requireRole(req, ROLES_EXPLOITATION);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
+  requireCentraleAccess(user, demande.centrale_source_id);
   if (demande.statut !== 'EN_ATTENTE') {
     throw new HttpError(400, 'Seule une demande en attente peut être transmise');
   }
@@ -311,7 +316,7 @@ demandesRouter.post('/:id/transmettre', (req, res) => {
   const libelle = LIBELLES[demande.type];
   const suffixe = demande.niveau_impact === 'CRITIQUE' ? ' [IMPACT CRITIQUE — approbation Administrateur requise]' : '';
   const message = `Demande de ${libelle} pour "${demande.actif_nom}" transmise par ${user.nom}, en attente de votre approbation.${suffixe}`;
-  notifyChefsCentrale(demande.centrale_source_id, 'DEMANDE_TRANSMISE', message, `#/demandes/${demande.id}`);
+  notifyRoleCentrale('CHEF_CENTRALE', demande.centrale_source_id, 'DEMANDE_TRANSMISE', message, `#/demandes/${demande.id}`);
   notifyRole('ADMINISTRATEUR', 'DEMANDE_TRANSMISE', message, `#/demandes/${demande.id}`);
   notifyUser(demande.demandeur_id, 'DEMANDE_TRANSMISE', `Votre demande de ${libelle} pour "${demande.actif_nom}" a été transmise au Chef Centrale par ${user.nom}.`, `#/demandes/${demande.id}`);
   logAudit({
@@ -330,6 +335,7 @@ demandesRouter.post('/:id/rejeter-exploitation', (req, res) => {
   const user = requireRole(req, ROLES_EXPLOITATION);
   const demande = db.prepare('SELECT * FROM demandes WHERE id = ?').get(req.params.id);
   if (!demande) throw new HttpError(404, 'Demande introuvable');
+  requireCentraleAccess(user, demande.centrale_source_id);
   if (demande.statut !== 'EN_ATTENTE') {
     throw new HttpError(400, 'Seule une demande en attente peut être rejetée à ce stade');
   }

@@ -4,7 +4,7 @@ import { computeCentralePerformance } from '../services/performance.js';
 import { computeCentraleDashboard } from '../services/dashboardCentrale.js';
 import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL, centraleScopeId, requireCentraleAccess } from '../lib/auth.js';
 import { logAudit, diffChamps } from '../lib/audit.js';
-import { sendCsv, parseCsv } from '../lib/csv.js';
+import { sendCsv, parseImportRows } from '../lib/csv.js';
 
 const PERIODES_VALIDES = ['jour', 'semaine', 'mois', 'trimestre', 'annee'];
 
@@ -72,10 +72,20 @@ centralesRouter.get('/export', (req, res) => {
   sendCsv(res, 'centrales.csv', centrales, EXPORT_COLUMNS);
 });
 
+// Liste minimale (id/code/nom) de toutes les centrales actives, accessible à tout utilisateur
+// authentifié quel que soit son cloisonnement : nécessaire pour choisir une centrale de
+// destination lors d'un déplacement, ou simplement explorer une simulation d'impact, sans
+// exposer les données opérationnelles détaillées d'une centrale qui ne serait pas la sienne.
+centralesRouter.get('/destinations', (req, res) => {
+  requireAuth(req);
+  const centrales = db.prepare("SELECT id, code, nom FROM centrales WHERE statut = 'ACTIVE' ORDER BY nom").all();
+  res.json(centrales);
+});
+
 centralesRouter.post('/import', (req, res) => {
   const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
-  const rows = parseCsv(req.body?.csv);
-  if (!rows.length) throw new HttpError(400, 'Fichier CSV vide ou illisible');
+  const rows = parseImportRows(req.body);
+  if (!rows.length) throw new HttpError(400, 'Fichier vide ou illisible (CSV ou Excel .xlsx attendu)');
 
   let crees = 0;
   let misAJour = 0;

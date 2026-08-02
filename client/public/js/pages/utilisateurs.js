@@ -4,7 +4,7 @@ import { escapeHtml, formatDate, showToast, ROLE_LABELS } from '../utils.js';
 import { getCurrentUser } from '../auth.js';
 import { refresh } from '../router.js';
 
-const ROLE_CENTRALE_SCOPE = 'CHEF_CENTRALE';
+const ROLES_CENTRALE_SCOPE = ['CHEF_CENTRALE', 'RESPONSABLE_MECANIQUE', 'RESPONSABLE_EXPLOITATION'];
 
 export async function renderUtilisateurs() {
   const app = document.getElementById('app');
@@ -19,11 +19,11 @@ export async function renderUtilisateurs() {
       </div>
       <div class="actif-actions">
         <a class="btn btn-ghost" href="${api.exportUtilisateursUrl()}" target="_blank" rel="noopener">Exporter CSV</a>
-        <button class="btn btn-ghost" id="import-user-btn">Importer CSV</button>
+        <button class="btn btn-ghost" id="import-user-btn">Importer CSV / Excel</button>
         <button class="btn btn-primary" id="new-user-btn">+ Nouvel utilisateur</button>
       </div>
     </div>
-    <input type="file" id="import-user-file" accept=".csv" style="display:none;" />
+    <input type="file" id="import-user-file" accept=".csv,.xlsx,.xls" style="display:none;" />
 
     <div class="table-wrapper">
       <table class="data-table">
@@ -66,8 +66,7 @@ export async function renderUtilisateurs() {
     const file = importInput.files[0];
     if (!file) return;
     try {
-      const csv = await file.text();
-      const rapport = await api.importUtilisateurs(csv);
+      const rapport = await api.importUtilisateurs(file);
       showToast(
         `Import terminé : ${rapport.crees} créé(s), ${rapport.misAJour} mis à jour${rapport.erreurs.length ? `, ${rapport.erreurs.length} erreur(s)` : ''}.`,
         rapport.erreurs.length ? 'error' : 'success'
@@ -119,7 +118,7 @@ function openUserFormModal(user, centrales) {
             .join('')}
         </select>
       </label>
-      <label class="field" id="user-centrale-field" style="display:${(isEdit ? user.role : Object.keys(ROLE_LABELS)[0]) === ROLE_CENTRALE_SCOPE ? '' : 'none'};">
+      <label class="field" id="user-centrale-field" style="display:${ROLES_CENTRALE_SCOPE.includes(isEdit ? user.role : Object.keys(ROLE_LABELS)[0]) ? '' : 'none'};">
         <span>Centrale</span>
         <select name="centraleId">
           <option value="">— Sélectionner —</option>
@@ -154,7 +153,7 @@ function openUserFormModal(user, centrales) {
       const roleSelect = dialog.querySelector('#user-role-select');
       const centraleField = dialog.querySelector('#user-centrale-field');
       roleSelect.addEventListener('change', () => {
-        centraleField.style.display = roleSelect.value === ROLE_CENTRALE_SCOPE ? '' : 'none';
+        centraleField.style.display = ROLES_CENTRALE_SCOPE.includes(roleSelect.value) ? '' : 'none';
       });
 
       dialog.querySelector('#user-form').addEventListener('submit', async (e) => {
@@ -162,8 +161,8 @@ function openUserFormModal(user, centrales) {
         const fd = new FormData(e.target);
         const role = fd.get('role');
         const centraleId = fd.get('centraleId') ? Number(fd.get('centraleId')) : null;
-        if (role === ROLE_CENTRALE_SCOPE && !centraleId) {
-          showToast('Sélectionnez une centrale pour un Chef Centrale.', 'error');
+        if (ROLES_CENTRALE_SCOPE.includes(role) && !centraleId) {
+          showToast('Sélectionnez une centrale pour ce rôle.', 'error');
           return;
         }
         try {
@@ -171,7 +170,7 @@ function openUserFormModal(user, centrales) {
             await api.updateUtilisateur(user.id, {
               nom: fd.get('nom'),
               role,
-              centraleId: role === ROLE_CENTRALE_SCOPE ? centraleId : null,
+              centraleId: ROLES_CENTRALE_SCOPE.includes(role) ? centraleId : null,
               actif: fd.get('actif') === 'on',
               password: fd.get('password') || undefined,
             });
@@ -180,7 +179,7 @@ function openUserFormModal(user, centrales) {
               nom: fd.get('nom'),
               email: fd.get('email'),
               role,
-              centraleId: role === ROLE_CENTRALE_SCOPE ? centraleId : null,
+              centraleId: ROLES_CENTRALE_SCOPE.includes(role) ? centraleId : null,
               password: fd.get('password'),
             });
           }

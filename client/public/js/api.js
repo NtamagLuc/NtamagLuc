@@ -1,3 +1,29 @@
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// Lit un fichier CSV ou Excel (.xlsx) choisi par l'utilisateur et l'envoie à l'endpoint
+// d'import indiqué, dans le format attendu par le serveur (texte CSV ou base64 xlsx).
+// Le format binaire .xls (Excel 97-2003) n'est pas pris en charge sans dépendance externe.
+async function importFile(path, file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xls') {
+    throw new Error("Le format .xls (Excel 97-2003) n'est pas pris en charge — enregistrez le fichier au format .xlsx ou .csv.");
+  }
+  if (ext === 'xlsx') {
+    const buffer = await file.arrayBuffer();
+    return request('POST', path, { xlsxBase64: arrayBufferToBase64(buffer) });
+  }
+  const csv = await file.text();
+  return request('POST', path, { csv });
+}
+
 async function request(method, path, body) {
   const res = await fetch(path, {
     method,
@@ -26,17 +52,18 @@ export const api = {
   createUtilisateur: (payload) => request('POST', '/api/utilisateurs', payload),
   updateUtilisateur: (id, payload) => request('PUT', `/api/utilisateurs/${id}`, payload),
   deleteUtilisateur: (id) => request('DELETE', `/api/utilisateurs/${id}`),
-  importUtilisateurs: (csv) => request('POST', '/api/utilisateurs/import', { csv }),
+  importUtilisateurs: (file) => importFile('/api/utilisateurs/import', file),
   exportUtilisateursUrl: () => '/api/utilisateurs/export',
 
   // Centrales
   getCentrales: () => request('GET', '/api/centrales'),
+  getCentraleDestinations: () => request('GET', '/api/centrales/destinations'),
   getCentrale: (id) => request('GET', `/api/centrales/${id}`),
   getCentraleDashboard: (id, periode) => request('GET', `/api/centrales/${id}/dashboard${periode ? `?periode=${periode}` : ''}`),
   createCentrale: (payload) => request('POST', '/api/centrales', payload),
   updateCentrale: (id, payload) => request('PUT', `/api/centrales/${id}`, payload),
   deleteCentrale: (id) => request('DELETE', `/api/centrales/${id}`),
-  importCentrales: (csv) => request('POST', '/api/centrales/import', { csv }),
+  importCentrales: (file) => importFile('/api/centrales/import', file),
   exportCentralesUrl: () => '/api/centrales/export',
 
   // Actifs
@@ -46,7 +73,7 @@ export const api = {
   createActif: (payload) => request('POST', '/api/actifs', payload),
   updateActif: (id, payload) => request('PUT', `/api/actifs/${id}`, payload),
   deleteActif: (id) => request('DELETE', `/api/actifs/${id}`),
-  importActifs: (csv) => request('POST', '/api/actifs/import', { csv }),
+  importActifs: (file) => importFile('/api/actifs/import', file),
   exportActifsUrl: () => '/api/actifs/export',
   mettreEnMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/mettre-en-maintenance`, { commentaire }),
   finMaintenance: (id, commentaire) => request('POST', `/api/actifs/${id}/fin-maintenance`, { commentaire }),

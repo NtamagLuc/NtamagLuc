@@ -1,9 +1,9 @@
 import { Router, HttpError } from '../lib/miniweb.js';
 import { db } from '../db.js';
-import { requireAuth, requireRole, ROLES, ROLE_CENTRALE_SCOPE } from '../lib/auth.js';
+import { requireAuth, requireRole, ROLES, ROLES_CENTRALE_SCOPE } from '../lib/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { logAudit } from '../lib/audit.js';
-import { sendCsv, parseCsv } from '../lib/csv.js';
+import { sendCsv, parseImportRows } from '../lib/csv.js';
 
 export const utilisateursRouter = new Router();
 
@@ -39,8 +39,8 @@ utilisateursRouter.post('/', (req, res) => {
   const { nom, email, password, role, centraleId } = req.body;
   if (!nom || !email || !password) throw new HttpError(400, 'nom, email et password sont requis');
   if (!ROLES.includes(role)) throw new HttpError(400, `role invalide (attendu : ${ROLES.join(', ')})`);
-  if (role === ROLE_CENTRALE_SCOPE && !centraleId) {
-    throw new HttpError(400, 'Un Chef Centrale doit être rattaché à une centrale');
+  if (ROLES_CENTRALE_SCOPE.includes(role) && !centraleId) {
+    throw new HttpError(400, 'Ce rôle doit être rattaché à une centrale');
   }
 
   const existant = db.prepare('SELECT id FROM utilisateurs WHERE email = ?').get(email.toLowerCase().trim());
@@ -48,7 +48,7 @@ utilisateursRouter.post('/', (req, res) => {
 
   const info = db
     .prepare('INSERT INTO utilisateurs (nom, email, mot_de_passe_hash, role, centrale_id) VALUES (?, ?, ?, ?, ?)')
-    .run(nom, email.toLowerCase().trim(), hashPassword(password), role, role === ROLE_CENTRALE_SCOPE ? centraleId : null);
+    .run(nom, email.toLowerCase().trim(), hashPassword(password), role, ROLES_CENTRALE_SCOPE.includes(role) ? centraleId : null);
   const user = db.prepare('SELECT * FROM utilisateurs WHERE id = ?').get(info.lastInsertRowid);
   logAudit({ type: 'UTILISATEUR_CREE', description: `Utilisateur "${user.nom}" (${user.role}) créé`, acteur, cibleType: 'UTILISATEUR', cibleId: user.id });
   res.status(201).json(publicUser(withCentraleNom([user])[0]));
@@ -78,8 +78,8 @@ utilisateursRouter.get('/export', (req, res) => {
 
 utilisateursRouter.post('/import', (req, res) => {
   const acteur = requireRole(req, ['ADMINISTRATEUR']);
-  const rows = parseCsv(req.body?.csv);
-  if (!rows.length) throw new HttpError(400, 'Fichier CSV vide ou illisible');
+  const rows = parseImportRows(req.body);
+  if (!rows.length) throw new HttpError(400, 'Fichier vide ou illisible (CSV ou Excel .xlsx attendu)');
 
   let crees = 0;
   let misAJour = 0;
@@ -99,10 +99,10 @@ utilisateursRouter.post('/import', (req, res) => {
       return;
     }
     let centraleId = null;
-    if (role === ROLE_CENTRALE_SCOPE) {
+    if (ROLES_CENTRALE_SCOPE.includes(role)) {
       const centraleCode = row.centrale_code?.trim();
       if (!centraleCode) {
-        erreurs.push(`Ligne ${ligne} (${email}) : centrale_code requis pour le rôle ${ROLE_CENTRALE_SCOPE}`);
+        erreurs.push(`Ligne ${ligne} (${email}) : centrale_code requis pour le rôle ${role}`);
         return;
       }
       const centrale = db.prepare('SELECT id FROM centrales WHERE code = ?').get(centraleCode);
@@ -156,8 +156,8 @@ utilisateursRouter.put('/:id', (req, res) => {
 
   if (role && !ROLES.includes(role)) throw new HttpError(400, `role invalide (attendu : ${ROLES.join(', ')})`);
   const roleFinal = role ?? user.role;
-  if (roleFinal === ROLE_CENTRALE_SCOPE && !(centraleId ?? user.centrale_id)) {
-    throw new HttpError(400, 'Un Chef Centrale doit être rattaché à une centrale');
+  if (ROLES_CENTRALE_SCOPE.includes(roleFinal) && !(centraleId ?? user.centrale_id)) {
+    throw new HttpError(400, 'Ce rôle doit être rattaché à une centrale');
   }
 
   const perdLeRoleAdmin = user.role === 'ADMINISTRATEUR' && ((role && role !== 'ADMINISTRATEUR') || actif === false);
@@ -175,7 +175,7 @@ utilisateursRouter.put('/:id', (req, res) => {
   ).run(
     nom ?? user.nom,
     roleFinal,
-    roleFinal === ROLE_CENTRALE_SCOPE ? centraleId ?? user.centrale_id : null,
+    ROLES_CENTRALE_SCOPE.includes(roleFinal) ? centraleId ?? user.centrale_id : null,
     actif === undefined ? user.actif : actif ? 1 : 0,
     password ? hashPassword(password) : user.mot_de_passe_hash,
     user.id

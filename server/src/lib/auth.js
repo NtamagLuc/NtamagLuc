@@ -22,8 +22,9 @@ export const ROLES_APPROBATION_FINALE = ['ADMINISTRATEUR', 'CHEF_CENTRALE'];
 // Peut réaliser les actions opérationnelles directes (maintenance/réparation), sur sa centrale pour le Chef Centrale.
 export const ROLES_OPERATION_DIRECTE = ['ADMINISTRATEUR', 'CHEF_CENTRALE'];
 
-// Rôle dont la visibilité est cantonnée à une seule centrale (via utilisateurs.centrale_id).
-export const ROLE_CENTRALE_SCOPE = 'CHEF_CENTRALE';
+// Rôles dont la visibilité est cantonnée à une seule centrale (via utilisateurs.centrale_id) :
+// chacun est rattaché à sa centrale et n'agit/ne voit que ce qui la concerne.
+export const ROLES_CENTRALE_SCOPE = ['CHEF_CENTRALE', 'RESPONSABLE_MECANIQUE', 'RESPONSABLE_EXPLOITATION'];
 
 export function createSession(userId) {
   const id = randomBytes(32).toString('hex');
@@ -94,7 +95,7 @@ export function requireRole(req, roles) {
 
 // Retourne l'id de centrale auquel restreindre la visibilité de l'utilisateur, ou null si vue globale.
 export function centraleScopeId(user) {
-  return user.role === ROLE_CENTRALE_SCOPE ? user.centrale_id : null;
+  return ROLES_CENTRALE_SCOPE.includes(user.role) ? user.centrale_id : null;
 }
 
 export function requireCentraleAccess(user, centraleId) {

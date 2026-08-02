@@ -11,7 +11,7 @@ import {
   requireCentraleAccess,
 } from '../lib/auth.js';
 import { logAudit, diffChamps } from '../lib/audit.js';
-import { sendCsv, parseCsv } from '../lib/csv.js';
+import { sendCsv, parseImportRows } from '../lib/csv.js';
 
 export const actifsRouter = new Router();
 
@@ -135,8 +135,8 @@ actifsRouter.get('/export', (req, res) => {
 
 actifsRouter.post('/import', (req, res) => {
   const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
-  const rows = parseCsv(req.body?.csv);
-  if (!rows.length) throw new HttpError(400, 'Fichier CSV vide ou illisible');
+  const rows = parseImportRows(req.body);
+  if (!rows.length) throw new HttpError(400, 'Fichier vide ou illisible (CSV ou Excel .xlsx attendu)');
 
   const codesDuFichier = new Set(rows.map((r) => r.code?.trim()).filter(Boolean));
   let crees = 0;

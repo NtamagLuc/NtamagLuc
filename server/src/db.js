@@ -241,9 +241,11 @@ function seedIfEmpty() {
       VALUES (?, ?, ?, ?, ?)
     `);
     insertUser.run('Alice Administrateur', 'admin@centrale.local', hashPassword('admin123'), 'ADMINISTRATEUR', null);
-    insertUser.run('Marc Mécanique', 'mecanique@centrale.local', hashPassword('mecanique123'), 'RESPONSABLE_MECANIQUE', null);
-    insertUser.run('Élise Exploitation', 'exploitation@centrale.local', hashPassword('exploitation123'), 'RESPONSABLE_EXPLOITATION', null);
+    insertUser.run('Marc Mécanique (Douala)', 'mecanique.douala@centrale.local', hashPassword('mecanique123'), 'RESPONSABLE_MECANIQUE', c1);
+    insertUser.run('Élise Exploitation (Douala)', 'exploitation.douala@centrale.local', hashPassword('exploitation123'), 'RESPONSABLE_EXPLOITATION', c1);
     insertUser.run('Chef Centrale Douala', 'chef.douala@centrale.local', hashPassword('chefcentrale123'), 'CHEF_CENTRALE', c1);
+    insertUser.run('Paul Mécanique (Song Loulou)', 'mecanique.songloulou@centrale.local', hashPassword('mecanique123'), 'RESPONSABLE_MECANIQUE', c2);
+    insertUser.run('Nadège Exploitation (Song Loulou)', 'exploitation.songloulou@centrale.local', hashPassword('exploitation123'), 'RESPONSABLE_EXPLOITATION', c2);
     insertUser.run('Chef Centrale Song Loulou', 'chef.songloulou@centrale.local', hashPassword('chefcentrale123'), 'CHEF_CENTRALE', c2);
   }
 }

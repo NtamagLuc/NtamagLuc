@@ -1,3 +1,20 @@
+import { parseXlsx } from './xlsx.js';
+import { HttpError } from './miniweb.js';
+
+// Point d'entrée commun aux routes d'import : accepte soit du CSV texte (req.body.csv),
+// soit un classeur Excel encodé en base64 (req.body.xlsxBase64), et retourne dans les
+// deux cas le même format de lignes (tableau d'objets indexés sur les en-têtes).
+export function parseImportRows(body) {
+  if (body?.xlsxBase64) {
+    try {
+      return parseXlsx(Buffer.from(body.xlsxBase64, 'base64'));
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+  }
+  return parseCsv(body?.csv);
+}
+
 function escapeCsvField(value) {
   if (value === null || value === undefined) return '';
   const str = String(value);

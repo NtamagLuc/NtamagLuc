@@ -65,6 +65,8 @@ export function canOperateDirect() {
   return hasRole('ADMINISTRATEUR', 'CHEF_CENTRALE');
 }
 
+const ROLES_CENTRALE_SCOPE = ['CHEF_CENTRALE', 'RESPONSABLE_MECANIQUE', 'RESPONSABLE_EXPLOITATION'];
+
 export function centraleScopeId() {
-  return currentUser?.role === 'CHEF_CENTRALE' ? currentUser.centrale_id : null;
+  return currentUser && ROLES_CENTRALE_SCOPE.includes(currentUser.role) ? currentUser.centrale_id : null;
 }

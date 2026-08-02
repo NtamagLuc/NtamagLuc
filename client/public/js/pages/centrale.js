@@ -19,7 +19,7 @@ import {
   NIVEAU_IMPACT_LABELS,
   NIVEAU_IMPACT_CLASSES,
 } from '../utils.js';
-import { canManageReferentiel, centraleScopeId } from '../auth.js';
+import { canManageReferentiel } from '../auth.js';
 import { refresh } from '../router.js';
 
 const STATUT_COLORS = {
@@ -490,7 +490,6 @@ export async function renderCentraleDetail({ id }) {
 
   function renderSimulationSection() {
     const actifsSimulables = centrale.actifs.filter((a) => !['DECOMMISSIONNE', 'REFORME'].includes(a.statut));
-    const peutDeplacer = !centraleScopeId();
     document.getElementById('section-simulation').innerHTML = `
       <p class="dashboard-note">Simulation virtuelle sans impact réel : rien n'est modifié tant qu'une demande n'a pas suivi le circuit complet de validation.</p>
       <div class="filters-bar">
@@ -504,7 +503,7 @@ export async function renderCentraleDetail({ id }) {
           <span>Opération</span>
           <select id="sim-type">
             <option value="RETRAIT">Retrait</option>
-            ${peutDeplacer ? '<option value="DEPLACEMENT">Déplacement</option>' : ''}
+            <option value="DEPLACEMENT">Déplacement</option>
             <option value="DECOMMISSIONNEMENT">Décommissionnement</option>
             <option value="REMISE_EN_SERVICE">Remise en service</option>
           </select>
@@ -527,8 +526,8 @@ export async function renderCentraleDetail({ id }) {
       if (typeSelect.value === 'DEPLACEMENT') {
         destField.style.display = '';
         if (!destChargees) {
-          const centrales = await api.getCentrales();
-          const autres = centrales.filter((c) => c.id !== centrale.id && c.statut === 'ACTIVE');
+          const centrales = await api.getCentraleDestinations();
+          const autres = centrales.filter((c) => c.id !== centrale.id);
           destSelect.innerHTML = autres.length
             ? autres.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join('')
             : '<option value="">Aucune autre centrale active</option>';

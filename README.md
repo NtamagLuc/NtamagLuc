@@ -20,12 +20,12 @@ de décision à deux niveaux ait été respecté.
 | Fonction | Description |
 |---|---|
 | **Authentification** | Connexion par email/mot de passe, session par cookie sécurisé, vérification du statut actif du compte. 4 rôles avec permissions différenciées. |
-| **Cloisonnement par centrale** | Un Chef Centrale ne voit et n'agit que sur **sa** centrale (tableau de bord, actifs, demandes, reporting). Seul l'Administrateur a une vue globale sur l'ensemble du parc. |
+| **Cloisonnement par centrale** | Le Chef Centrale, le Responsable Mécanique et le Responsable Exploitation sont chacun rattachés à **une seule centrale** et ne voient/n'agissent que sur celle-ci (tableau de bord, actifs, demandes, reporting, mouvements). Seul l'Administrateur a une vue globale sur l'ensemble du parc. |
 | **Gestion des centrales** | Création/modification avec code unique, type, localisation, puissance installée, seuil d'alerte, statut — Administrateur uniquement. Chaque centrale expose sa **puissance installée**, sa **puissance disponible** et sa **disponibilité (%)**. |
 | **Tableau de bord par centrale** | Vue analytique complète (page centrale) : identité, KPI (puissance installée/disponible/indisponible, disponibilité, taux d'utilisation, production estimée réelle/prévue et écart), répartition des actifs par statut et par cause d'indisponibilité (cliquable), actifs critiques, unités de production, hiérarchie des équipements, résumé maintenance, opérations en cours, simulation d'impact interactive, alertes cliquables, évolution de la disponibilité par période (jour/semaine/mois/trimestre/année, reconstruite à partir des mouvements réellement enregistrés), timeline des événements et contribution au parc. |
 | **Gestion des actifs** | Fiche complète : code unique, désignation, type, fabricant, modèle, numéro de série, date de mise en service, criticité, centrale d'affectation — Administrateur uniquement. |
 | **Hiérarchie actif mère / actifs enfants** | Profondeur illimitée (ex : Centrale → Unité de production → Groupe de production → Turbine → Générateur/Capteur), avec navigation par fil d'Ariane et détection des boucles interdite. |
-| **Import / export CSV** | Centrales, actifs (avec relations mère/fils via `parent_code`) et utilisateurs (avec centrale via `centrale_code`) sont importables et exportables en CSV UTF-8 — Administrateur uniquement. |
+| **Import / export CSV et Excel** | Centrales, actifs (avec relations mère/fils via `parent_code`) et utilisateurs (avec centrale via `centrale_code`) sont importables depuis un fichier **CSV ou Excel (.xlsx)**, et exportables en CSV UTF-8 — Administrateur uniquement. |
 | **Retrait du service** | Demande de retrait d'un actif en service/maintenance/réparation → statut cible `HORS_SERVICE`. |
 | **Déplacement entre centrales** | Demande de déplacement avec choix : actif seul ou avec toute sa hiérarchie. |
 | **Décommissionnement** | Demande avec état cible au choix : `DECOMMISSIONNE` ou `REFORME` — définitif, aucune remise en service possible ensuite. L'actif n'est jamais supprimé physiquement (traçabilité). |
@@ -40,7 +40,7 @@ de décision à deux niveaux ait été respecté.
 | **Audit** | Recherche/filtrage des événements par centrale, actif, utilisateur, période, type d'opération — Administrateur uniquement. |
 | **Notifications** | Centre in-app (cloche, badge, marquage lu) : nouvelle demande à vérifier, demande transmise à approuver, simulation obsolète, demande rejetée/exécutée. |
 | **Reporting / Power BI** | Tableau de bord analytique in-app (scopé à la centrale pour un Chef Centrale) + export CSV UTF-8 par entité (centrales, actifs, mouvements, demandes), importable dans Power BI Desktop ou Excel. |
-| **Gestion des utilisateurs** | Création, modification, **suppression**, import et export CSV des utilisateurs — Administrateur uniquement. Un Chef Centrale est obligatoirement rattaché à une centrale. |
+| **Gestion des utilisateurs** | Création, modification, **suppression**, import (CSV/Excel) et export CSV des utilisateurs — Administrateur uniquement. Un Chef Centrale, un Responsable Mécanique et un Responsable Exploitation sont obligatoirement rattachés à une centrale. |
 
 ### Le circuit d'une demande
 
@@ -88,10 +88,10 @@ n'y contribue pas.
 
 | Action | Resp. Mécanique | Resp. Exploitation | Chef Centrale | Administrateur |
 |---|:---:|:---:|:---:|:---:|
-| Consultation de sa/ses centrale(s), reporting | ✅ (tout le parc) | ✅ (tout le parc) | ✅ (sa centrale uniquement) | ✅ (tout le parc) |
+| Consultation de sa centrale, reporting, mouvements | ✅ (sa centrale) | ✅ (sa centrale) | ✅ (sa centrale) | ✅ (tout le parc) |
 | Créer/modifier/importer/exporter centrales et actifs | ❌ | ❌ | ❌ | ✅ |
-| Créer une demande | ✅ | ❌ | ❌ | ✅ |
-| Vérifier et transmettre / rejeter une demande | ❌ | ✅ | ❌ | ✅ |
+| Créer une demande | ✅ (sa centrale) | ❌ | ❌ | ✅ |
+| Vérifier et transmettre / rejeter une demande | ❌ | ✅ (sa centrale) | ❌ | ✅ |
 | Approuver (= exécuter) / rejeter une demande transmise | ❌ | ❌ | ✅ (sa centrale) | ✅ |
 | Approuver une demande à impact **critique** | ❌ | ❌ | ❌ | ✅ |
 | Annuler sa propre demande | ✅ (auteur) | ❌ | ❌ | ✅ |
@@ -105,10 +105,18 @@ n'y contribue pas.
 | Rôle | Email | Mot de passe | Centrale |
 |---|---|---|---|
 | Administrateur | `admin@centrale.local` | `admin123` | toutes |
-| Responsable Mécanique | `mecanique@centrale.local` | `mecanique123` | toutes (créateur de demandes) |
-| Responsable Exploitation | `exploitation@centrale.local` | `exploitation123` | toutes (vérificateur) |
+| Responsable Mécanique — Douala | `mecanique.douala@centrale.local` | `mecanique123` | Centrale Thermique de Douala |
+| Responsable Exploitation — Douala | `exploitation.douala@centrale.local` | `exploitation123` | Centrale Thermique de Douala |
 | Chef Centrale — Douala | `chef.douala@centrale.local` | `chefcentrale123` | Centrale Thermique de Douala |
+| Responsable Mécanique — Song Loulou | `mecanique.songloulou@centrale.local` | `mecanique123` | Barrage Hydroélectrique de Song Loulou |
+| Responsable Exploitation — Song Loulou | `exploitation.songloulou@centrale.local` | `exploitation123` | Barrage Hydroélectrique de Song Loulou |
 | Chef Centrale — Song Loulou | `chef.songloulou@centrale.local` | `chefcentrale123` | Barrage Hydroélectrique de Song Loulou |
+
+> Chaque centrale a besoin de son propre trio Mécanique/Exploitation/Chef
+> Centrale pour que le circuit de demande fonctionne de bout en bout ; la
+> Centrale Solaire de Maroua n'a pas d'équipe dédiée dans les données de
+> démonstration (gérable par l'Administrateur uniquement) — un Administrateur
+> peut en créer une à tout moment (page Utilisateurs).
 
 > Comptes créés automatiquement au premier démarrage. À changer avant tout
 > déploiement réel (page Utilisateurs, Administrateur uniquement).
@@ -127,14 +135,20 @@ n'y contribue pas.
   sessions en base + cookie `HttpOnly` (`server/src/lib/auth.js`).
 - **Cloisonnement par centrale** : `centraleScopeId()` / `requireCentraleAccess()`
   (`server/src/lib/auth.js`) filtrent chaque route consultée ou modifiée par
-  un Chef Centrale à sa seule centrale (`centrale_id` sur l'utilisateur).
+  un Chef Centrale, un Responsable Mécanique ou un Responsable Exploitation
+  à sa seule centrale (`centrale_id` sur l'utilisateur, obligatoire pour ces
+  3 rôles). Un `GET /api/centrales/destinations` minimal (id/code/nom
+  uniquement) reste accessible malgré le cloisonnement, pour permettre de
+  choisir une centrale de destination lors d'un déplacement.
 - **Transactions** : l'approbation d'une demande (changement d'état +
   journalisation + mise à jour du statut) est enveloppée dans une
   transaction SQLite (`withTransaction` dans `db.js`) : aucune opération
   n'est partiellement appliquée en cas d'échec.
-- **Import/export CSV** : parseur et writer RFC4180 maison
-  (`server/src/lib/csv.js`), sans dépendance externe, avec BOM UTF-8 pour
-  Excel.
+- **Import/export CSV et Excel** : parseur et writer RFC4180 maison
+  (`server/src/lib/csv.js`), avec BOM UTF-8 pour Excel. L'import accepte
+  aussi un classeur **.xlsx**, lu par un mini-lecteur ZIP + XML écrit sans
+  dépendance externe (`server/src/lib/xlsx.js`, DEFLATE via `node:zlib`) :
+  aucune bibliothèque tierce n'est nécessaire pour ouvrir un fichier Excel.
 - **Base de données** : SQLite via `node:sqlite`
   (`server/data/`, créée et peuplée automatiquement).
 - **Frontend** : JavaScript vanilla (ES modules), sans framework ni build
@@ -150,6 +164,7 @@ NtamagLuc/
 │   ├── lib/
 │   │   ├── miniweb.js                 # mini-framework HTTP (routage, JSON, CORS)
 │   │   ├── auth.js                    # sessions, cookies, garde d'accès par rôle + par centrale
+│   │   ├── xlsx.js                    # lecteur .xlsx (ZIP + XML) sans dépendance externe
 │   │   ├── password.js, csv.js, notifications.js, audit.js
 │   ├── routes/                        # auth, utilisateurs, centrales, actifs, demandes,
 │   │                                  # mouvements, notifications, reporting, audit, parametres
@@ -185,18 +200,19 @@ démonstration ci-dessus. Le port peut être changé via `PORT`.
 | POST | `/api/auth/login`, `/api/auth/logout` | Connexion / déconnexion |
 | GET | `/api/auth/me` | Utilisateur courant |
 | GET/POST/PUT/DELETE | `/api/utilisateurs` | Gestion des utilisateurs (Administrateur) |
-| GET/POST | `/api/utilisateurs/export`, `/import` | Import/export CSV des utilisateurs |
-| GET/POST/PUT/DELETE | `/api/centrales` | Centrales (scopées par centrale pour un Chef Centrale) |
-| GET/POST | `/api/centrales/export`, `/import` | Import/export CSV des centrales |
+| GET/POST | `/api/utilisateurs/export`, `/import` | Import (CSV ou Excel `.xlsx`) / export CSV des utilisateurs |
+| GET/POST/PUT/DELETE | `/api/centrales` | Centrales (scopées par centrale pour Chef Centrale/Mécanique/Exploitation) |
+| GET | `/api/centrales/destinations` | Liste minimale (id/code/nom) de toutes les centrales actives, non cloisonnée (choix d'une destination de déplacement) |
+| GET/POST | `/api/centrales/export`, `/import` | Import (CSV ou Excel `.xlsx`) / export CSV des centrales |
 | GET | `/api/centrales/:id/dashboard?periode=` | Tableau de bord agrégé de la centrale (KPI, causes, alertes, historique, timeline, contribution au parc) |
-| GET/POST/PUT/DELETE | `/api/actifs` | Actifs (scopés par centrale pour un Chef Centrale) |
-| GET/POST | `/api/actifs/export`, `/import` | Import/export CSV des actifs (avec `parent_code`) |
+| GET/POST/PUT/DELETE | `/api/actifs` | Actifs (scopés par centrale pour Chef Centrale/Mécanique/Exploitation) |
+| GET/POST | `/api/actifs/export`, `/import` | Import (CSV ou Excel `.xlsx`) / export CSV des actifs (avec `parent_code`) |
 | POST | `/api/actifs/:id/mettre-en-maintenance`, `/fin-maintenance`, `/mettre-en-reparation`, `/fin-reparation` | Actions opérationnelles directes (Chef Centrale de la centrale, Administrateur) |
-| GET/POST | `/api/demandes`, `/api/demandes/preview` | Liste / création / simulation à la volée |
-| POST | `/api/demandes/:id/transmettre`, `/rejeter-exploitation` | Étape 1 : vérification par l'Exploitation |
+| GET/POST | `/api/demandes`, `/api/demandes/preview` | Liste (scopée) / création (limitée à sa centrale pour Mécanique) / simulation à la volée |
+| POST | `/api/demandes/:id/transmettre`, `/rejeter-exploitation` | Étape 1 : vérification par l'Exploitation (de la centrale de la demande) |
 | POST | `/api/demandes/:id/approuver`, `/rejeter` | Étape 2 : approbation (= exécution) par le Chef Centrale |
 | POST | `/api/demandes/:id/annuler`, `/relancer-simulation` | Annulation / relance de simulation obsolète |
-| GET | `/api/mouvements` | Historique des mouvements exécutés |
+| GET | `/api/mouvements` | Historique des mouvements exécutés (scopé par centrale) |
 | GET | `/api/audit-log` | Journal d'audit filtrable (Administrateur) |
 | GET/POST | `/api/notifications`, `/:id/lu`, `/lu-tout` | Centre de notifications |
 | GET/PUT | `/api/parametres/impact` | Seuils de classification du niveau d'impact (Administrateur) |
@@ -214,12 +230,24 @@ faits, documentés ici pour transparence :
   (et, pour un déplacement, la situation de la centrale destination) au
   moment de la transmission/approbation à celle du calcul initial ; elle
   ne rejoue pas une comparaison champ par champ de tous les attributs.
-- L'import CSV se fait en collant/chargeant un fichier `.csv` lu côté
-  navigateur (`FileReader`) puis envoyé en JSON ; il n'y a pas d'upload
-  multipart natif (contrainte zéro-dépendance).
-- Un Responsable Mécanique et un Responsable Exploitation ne sont pas
-  rattachés à une centrale : ils opèrent sur l'ensemble du parc (seul le
-  rôle Chef Centrale est cloisonné, conformément à la demande).
+- L'import se fait en chargeant un fichier `.csv` ou `.xlsx` lu côté
+  navigateur (texte pour le CSV, `ArrayBuffer` → base64 pour l'Excel) puis
+  envoyé en JSON ; il n'y a pas d'upload multipart natif (contrainte
+  zéro-dépendance).
+- Seul le format Excel **moderne (.xlsx, OOXML)** est pris en charge à
+  l'import, via un mini-lecteur ZIP + XML maison (`server/src/lib/xlsx.js`,
+  première feuille du classeur uniquement). L'ancien format binaire **.xls
+  (Excel 97-2003)** n'est pas supporté : l'implémenter sans dépendance
+  externe aurait demandé un lecteur complet du format OLE2 Compound File +
+  BIFF8, disproportionné ici. Un fichier `.xls` est rejeté avec un message
+  clair invitant à l'enregistrer en `.xlsx` ou `.csv`.
+- Un Responsable Mécanique et un Responsable Exploitation sont chacun
+  rattachés à **une seule centrale** (comme le Chef Centrale) : ils ne
+  créent/vérifient des demandes que pour les actifs de leur centrale. Un
+  `GET /api/centrales/destinations` minimal reste accessible malgré ce
+  cloisonnement pour permettre de choisir une centrale de destination lors
+  d'un déplacement, sans exposer les données détaillées des autres
+  centrales.
 - La **production (MWh)** affichée dans le tableau de bord centrale est une
   **estimation** calculée en intégrant, dans le temps, la puissance
   disponible réellement enregistrée (reconstruite à partir des mouvements
@@ -245,10 +273,17 @@ Mécanique, vérification et transmission par le Responsable Exploitation,
 approbation = exécution immédiate par le Chef Centrale de la centrale
 concernée, rejet au stade Exploitation (retour au Mécanique) et rejet au
 stade Chef Centrale, escalade d'une demande à impact **critique** vers
-l'Administrateur (Chef Centrale bloqué en 403), cloisonnement d'un Chef
-Centrale à sa seule centrale sur le tableau de bord/demandes/reporting
-(vérifié avec deux Chefs Centrale distincts), accès refusé (403) sur les
-pages réservées à l'Administrateur, import/export CSV des centrales, des
-actifs (avec relations mère/fils via `parent_code`) et des utilisateurs
-(avec `centrale_code`), suppression d'un utilisateur, reporting scopé par
-centrale.
+l'Administrateur (Chef Centrale bloqué en 403), cloisonnement du Chef
+Centrale, du Responsable Mécanique et du Responsable Exploitation à leur
+seule centrale sur le tableau de bord/demandes/actifs/mouvements/reporting
+(vérifié avec deux équipes de centrale distinctes), blocage en 403 d'une
+création de demande ou d'une transmission sur un actif/une demande d'une
+autre centrale, accès non cloisonné à `/api/centrales/destinations` pour
+choisir une centrale de déplacement malgré le cloisonnement, accès refusé
+(403) sur les pages réservées à l'Administrateur, import/export CSV des
+centrales, des actifs (avec relations mère/fils via `parent_code`) et des
+utilisateurs (avec `centrale_code`), **import Excel (.xlsx)** round-trip
+pour les trois entités (fichiers construits et vérifiés au format ZIP/XML
+réel, y compris chaînes partagées, texte enrichi et accents UTF-8), rejet
+propre d'un fichier `.xls` ou invalide, suppression d'un utilisateur,
+reporting scopé par centrale.
