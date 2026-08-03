@@ -40,6 +40,7 @@ de décision à deux niveaux ait été respecté.
 | **Audit** | Recherche/filtrage des événements par centrale, actif, utilisateur, période, type d'opération — Administrateur uniquement. |
 | **Notifications** | Centre in-app (cloche, badge, marquage lu) : nouvelle demande à vérifier, demande transmise à approuver, simulation obsolète, demande rejetée/exécutée. |
 | **Reporting / Power BI** | Tableau de bord analytique in-app (scopé à la centrale pour un Chef Centrale) + export CSV UTF-8 par entité (centrales, actifs, mouvements, demandes), importable dans Power BI Desktop ou Excel. |
+| **Note d'arrêt pour travaux (NAPT)** | Depuis une demande de retrait ou de décommissionnement transmise/exécutée, génère une version imprimable (`window.print()` → PDF) du modèle officiel SOCAD'EL « Annexe 4/10 », pré-remplie avec les données de la demande (centrale, actif(s) impacté(s), puissance coupée, motif, demandeur, responsable centrale). Les champs non suivis par l'application (référence de la note d'information, entreprise désignée, clients industriels, départs électriques, retour en exploitation) restent éditables à l'écran avant impression. |
 | **Gestion des utilisateurs** | Création, modification, **suppression**, import (CSV/Excel) et export CSV des utilisateurs — Administrateur uniquement. Un Chef Centrale, un Responsable Mécanique et un Responsable Exploitation sont obligatoirement rattachés à une centrale. |
 
 ### Le circuit d'une demande

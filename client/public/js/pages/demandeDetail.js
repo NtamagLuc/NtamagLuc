@@ -32,6 +32,11 @@ export async function renderDemandeDetail({ id }) {
       <div>
         <span class="badge ${DEMANDE_STATUT_CLASSES[demande.statut] || 'badge-neutral'}" style="font-size:0.9rem;">${DEMANDE_STATUT_LABELS[demande.statut] || demande.statut}</span>
         ${demande.niveau_impact ? `<span class="badge ${NIVEAU_IMPACT_CLASSES[demande.niveau_impact] || 'badge-neutral'}" style="font-size:0.9rem;">Impact ${NIVEAU_IMPACT_LABELS[demande.niveau_impact] || demande.niveau_impact}</span>` : ''}
+        ${
+          ['RETRAIT', 'DECOMMISSIONNEMENT'].includes(demande.type) && demande.statut !== 'EN_ATTENTE'
+            ? `<a class="btn btn-ghost btn-sm" href="#/demandes/${demande.id}/napt" style="margin-left:8px;">🖨️ Note d'arrêt (NAPT)</a>`
+            : ''
+        }
       </div>
     </div>
 
