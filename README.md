@@ -193,6 +193,43 @@ npm start
 Puis ouvrir http://localhost:4000 et se connecter avec l'un des comptes de
 démonstration ci-dessus. Le port peut être changé via `PORT`.
 
+## Déploiement
+
+> ⚠️ **Ne pas déployer sur Vercel** : cette application est un serveur
+> Node.js classique et persistant (`http.createServer(...).listen()`) qui
+> écrit ses données dans un fichier SQLite local (`server/data/`). Ce
+> modèle n'est pas compatible avec Vercel, qui exécute du serverless ou du
+> statique — sans configuration adaptée, cela produit une erreur
+> `404 NOT_FOUND` sur toutes les routes, et même adapté, le système de
+> fichiers serverless de Vercel est éphémère (la base SQLite serait
+> réinitialisée à chaque invocation).
+
+Il faut une plateforme qui supporte un service Node.js persistant : par
+exemple **Render**, **Railway** ou **Fly.io** (VPS classique également
+possible). Le code est déjà prêt (`process.env.PORT` est utilisé, aucune
+dépendance à installer).
+
+### Déployer sur Render (recommandé, plan gratuit)
+
+Un fichier `render.yaml` est fourni à la racine du dépôt (déploiement en
+tant que « Blueprint ») :
+
+1. Sur [render.com](https://render.com), **New** → **Blueprint**, puis
+   sélectionner ce dépôt Git.
+2. Render détecte `render.yaml` et propose de créer le service
+   `socadel-gestion-actifs` (Node, plan gratuit, `npm install` puis
+   `npm start`) — valider.
+3. Une fois déployé, l'application est accessible sur l'URL fournie par
+   Render (`https://socadel-gestion-actifs.onrender.com` ou équivalent).
+
+> Sur le plan gratuit de Render, le disque n'est pas persistant : la base
+> SQLite est réinitialisée aux données de démonstration à chaque
+> redémarrage/redéploiement (l'application régénère automatiquement le
+> jeu de données de départ si la base est vide). Pour conserver des
+> données réelles entre les redéploiements, passer sur un plan payant
+> avec un **Persistent Disk** monté sur `server/data`, ou utiliser Railway
+> / Fly.io avec un volume persistant.
+
 ## API REST (principales routes)
 
 | Méthode | Route | Description |
