@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { openModal } from './modal.js';
-import { escapeHtml, showToast } from '../utils.js';
+import { escapeHtml, showToast, REGIONS_ELECTRIQUES } from '../utils.js';
 
 export function openCentraleFormModal({ onDone, centrale } = {}) {
   const isEdit = !!centrale;
@@ -22,10 +22,21 @@ export function openCentraleFormModal({ onDone, centrale } = {}) {
             .join('')}
         </select>
       </label>
-      <label class="field">
-        <span>Localisation</span>
-        <input type="text" name="localisation" placeholder="Ex : Limbé" value="${isEdit ? escapeHtml(centrale.localisation || '') : ''}" />
-      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Localisation</span>
+          <input type="text" name="localisation" placeholder="Ex : Limbé" value="${isEdit ? escapeHtml(centrale.localisation || '') : ''}" />
+        </label>
+        <label class="field">
+          <span>Région Electrique</span>
+          <select name="regionElectrique">
+            <option value="">— Non renseignée —</option>
+            ${REGIONS_ELECTRIQUES.map(
+              (r) => `<option value="${r.sigle}" ${isEdit && centrale.region_electrique === r.sigle ? 'selected' : ''}>${r.sigle} (${r.code})</option>`
+            ).join('')}
+          </select>
+        </label>
+      </div>
       <div class="field-row">
         <label class="field">
           <span>Puissance installée (MW)</span>
@@ -65,6 +76,7 @@ export function openCentraleFormModal({ onDone, centrale } = {}) {
             nom: fd.get('nom'),
             type: fd.get('type'),
             localisation: fd.get('localisation') || null,
+            regionElectrique: fd.get('regionElectrique') || null,
             capaciteNominaleMw: Number(fd.get('capaciteNominaleMw')),
             seuilAlertePct: Number(fd.get('seuilAlertePct')) || 70,
           };

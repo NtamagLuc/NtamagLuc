@@ -67,7 +67,7 @@ export async function renderNapt({ id }) {
           </td>
           <td class="napt-segment-cell">
             <div class="napt-field-row"><span class="napt-label">Segment :</span> <strong>PRODUCTION</strong></div>
-            <div class="napt-field-row"><span class="napt-label">Région Electrique :</span> ${champEditable(centrale.localisation || '')}</div>
+            <div class="napt-field-row"><span class="napt-label">Région Electrique :</span> ${champEditable(centrale.region_electrique || '')}</div>
           </td>
         </tr>
 

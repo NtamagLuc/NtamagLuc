@@ -5,13 +5,20 @@ import { computeCentraleDashboard } from '../services/dashboardCentrale.js';
 import { requireAuth, requireRole, ROLES_GESTION_REFERENTIEL, centraleScopeId, requireCentraleAccess } from '../lib/auth.js';
 import { logAudit, diffChamps } from '../lib/audit.js';
 import { sendCsv, parseImportRows } from '../lib/csv.js';
+import { SIGLES_REGIONS_VALIDES } from '../lib/regions.js';
 
 const PERIODES_VALIDES = ['jour', 'semaine', 'mois', 'trimestre', 'annee'];
 
 export const centralesRouter = new Router();
 
-const CHAMPS_MODIFIABLES = ['nom', 'type', 'localisation', 'capacite_nominale_mw', 'seuil_alerte_pct', 'statut'];
+const CHAMPS_MODIFIABLES = ['nom', 'type', 'localisation', 'region_electrique', 'capacite_nominale_mw', 'seuil_alerte_pct', 'statut'];
 const TYPES_VALIDES = ['THERMIQUE', 'HYDRAULIQUE', 'NUCLEAIRE', 'SOLAIRE', 'EOLIEN'];
+
+function regionValideOuNull(valeur) {
+  if (!valeur) return null;
+  const v = String(valeur).trim().toUpperCase();
+  return SIGLES_REGIONS_VALIDES.includes(v) ? v : undefined;
+}
 
 centralesRouter.get('/', (req, res) => {
   const user = requireAuth(req);
@@ -31,19 +38,23 @@ centralesRouter.get('/', (req, res) => {
 
 centralesRouter.post('/', (req, res) => {
   const user = requireRole(req, ROLES_GESTION_REFERENTIEL);
-  const { code, nom, type, localisation, capaciteNominaleMw, seuilAlertePct } = req.body;
+  const { code, nom, type, localisation, regionElectrique, capaciteNominaleMw, seuilAlertePct } = req.body;
   if (!code || !nom || !capaciteNominaleMw) {
     return res.status(400).json({ error: 'code, nom et capaciteNominaleMw sont requis' });
+  }
+  const region = regionValideOuNull(regionElectrique);
+  if (region === undefined) {
+    return res.status(400).json({ error: `regionElectrique invalide (attendu : ${SIGLES_REGIONS_VALIDES.join(', ')})` });
   }
   const codeExistant = db.prepare('SELECT id FROM centrales WHERE code = ?').get(code);
   if (codeExistant) return res.status(409).json({ error: `Le code "${code}" est déjà utilisé par une autre centrale` });
 
   const info = db
     .prepare(
-      `INSERT INTO centrales (code, nom, type, localisation, capacite_nominale_mw, seuil_alerte_pct, statut, cree_par_id, cree_par_nom)
-       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`
+      `INSERT INTO centrales (code, nom, type, localisation, region_electrique, capacite_nominale_mw, seuil_alerte_pct, statut, cree_par_id, cree_par_nom)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`
     )
-    .run(code, nom, type || 'THERMIQUE', localisation || null, capaciteNominaleMw, seuilAlertePct || 70, user.id, user.nom);
+    .run(code, nom, type || 'THERMIQUE', localisation || null, region, capaciteNominaleMw, seuilAlertePct || 70, user.id, user.nom);
   const centrale = db.prepare('SELECT * FROM centrales WHERE id = ?').get(info.lastInsertRowid);
   logAudit({
     type: 'CENTRALE_CREE',
@@ -61,6 +72,7 @@ const EXPORT_COLUMNS = [
   { key: 'nom', label: 'nom' },
   { key: 'type', label: 'type' },
   { key: 'localisation', label: 'localisation' },
+  { key: 'region_electrique', label: 'region_electrique' },
   { key: 'capacite_nominale_mw', label: 'puissance_installee_mw' },
   { key: 'seuil_alerte_pct', label: 'seuil_alerte_pct' },
   { key: 'statut', label: 'statut' },
@@ -107,18 +119,23 @@ centralesRouter.post('/import', (req, res) => {
     }
     const seuil = Number(row.seuil_alerte_pct);
     const statut = row.statut === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const region = regionValideOuNull(row.region_electrique);
+    if (region === undefined) {
+      erreurs.push(`Ligne ${ligne} (${code}) : region_electrique "${row.region_electrique}" invalide (attendu : ${SIGLES_REGIONS_VALIDES.join(', ')})`);
+      return;
+    }
 
     const existante = db.prepare('SELECT id FROM centrales WHERE code = ?').get(code);
     if (existante) {
       db.prepare(
-        `UPDATE centrales SET nom = ?, type = ?, localisation = ?, capacite_nominale_mw = ?, seuil_alerte_pct = ?, statut = ? WHERE id = ?`
-      ).run(nom, type, row.localisation || null, puissance, Number.isFinite(seuil) ? seuil : 70, statut, existante.id);
+        `UPDATE centrales SET nom = ?, type = ?, localisation = ?, region_electrique = ?, capacite_nominale_mw = ?, seuil_alerte_pct = ?, statut = ? WHERE id = ?`
+      ).run(nom, type, row.localisation || null, region, puissance, Number.isFinite(seuil) ? seuil : 70, statut, existante.id);
       misAJour++;
     } else {
       db.prepare(
-        `INSERT INTO centrales (code, nom, type, localisation, capacite_nominale_mw, seuil_alerte_pct, statut, cree_par_id, cree_par_nom)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(code, nom, type, row.localisation || null, puissance, Number.isFinite(seuil) ? seuil : 70, statut, user.id, user.nom);
+        `INSERT INTO centrales (code, nom, type, localisation, region_electrique, capacite_nominale_mw, seuil_alerte_pct, statut, cree_par_id, cree_par_nom)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(code, nom, type, row.localisation || null, region, puissance, Number.isFinite(seuil) ? seuil : 70, statut, user.id, user.nom);
       crees++;
     }
   });
@@ -158,22 +175,33 @@ centralesRouter.put('/:id', (req, res) => {
   const centrale = db.prepare('SELECT * FROM centrales WHERE id = ?').get(req.params.id);
   if (!centrale) return res.status(404).json({ error: 'Centrale introuvable' });
 
+  let regionElectrique = centrale.region_electrique;
+  if (req.body.regionElectrique !== undefined) {
+    const region = regionValideOuNull(req.body.regionElectrique);
+    if (region === undefined) {
+      return res.status(400).json({ error: `regionElectrique invalide (attendu : ${SIGLES_REGIONS_VALIDES.join(', ')})` });
+    }
+    regionElectrique = region;
+  }
+
   const nouvelles = {
     nom: req.body.nom ?? centrale.nom,
     type: req.body.type ?? centrale.type,
     localisation: req.body.localisation ?? centrale.localisation,
+    region_electrique: regionElectrique,
     capacite_nominale_mw: req.body.capaciteNominaleMw ?? centrale.capacite_nominale_mw,
     seuil_alerte_pct: req.body.seuilAlertePct ?? centrale.seuil_alerte_pct,
     statut: req.body.statut ?? centrale.statut,
   };
 
   db.prepare(
-    `UPDATE centrales SET nom = ?, type = ?, localisation = ?, capacite_nominale_mw = ?, seuil_alerte_pct = ?, statut = ?
+    `UPDATE centrales SET nom = ?, type = ?, localisation = ?, region_electrique = ?, capacite_nominale_mw = ?, seuil_alerte_pct = ?, statut = ?
      WHERE id = ?`
   ).run(
     nouvelles.nom,
     nouvelles.type,
     nouvelles.localisation,
+    nouvelles.region_electrique,
     nouvelles.capacite_nominale_mw,
     nouvelles.seuil_alerte_pct,
     nouvelles.statut,

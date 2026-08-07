@@ -32,6 +32,7 @@ db.exec(`
     nom TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'THERMIQUE',
     localisation TEXT,
+    region_electrique TEXT,
     capacite_nominale_mw REAL NOT NULL DEFAULT 0,
     seuil_alerte_pct REAL NOT NULL DEFAULT 70,
     statut TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -185,26 +186,28 @@ db.exec(`
 `);
 
 // Migration additive : ajoute les colonnes manquantes sur une base déjà déployée (ex. Render)
-// où la table demandes existait avant l'ajout des champs de coupure — CREATE TABLE IF NOT EXISTS
-// ne modifie pas une table déjà créée.
-function migrerColonnesManquantes() {
-  const colonnesExistantes = new Set(db.prepare('PRAGMA table_info(demandes)').all().map((c) => c.name));
-  const colonnesAAjouter = {
-    date_debut_coupure: 'TEXT',
-    heure_debut_coupure: 'TEXT',
-    date_retour_exploitation: 'TEXT',
-    heure_fin_coupure: 'TEXT',
-    nb_departs_rame: 'INTEGER',
-    nb_departs_impactes: 'INTEGER',
-    liste_departs_impactes: 'TEXT',
-  };
+// où la table existait avant l'ajout de nouveaux champs — CREATE TABLE IF NOT EXISTS ne modifie
+// pas une table déjà créée.
+function migrerColonnesManquantes(table, colonnesAAjouter) {
+  const colonnesExistantes = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
   for (const [colonne, type] of Object.entries(colonnesAAjouter)) {
     if (!colonnesExistantes.has(colonne)) {
-      db.exec(`ALTER TABLE demandes ADD COLUMN ${colonne} ${type}`);
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${colonne} ${type}`);
     }
   }
 }
-migrerColonnesManquantes();
+migrerColonnesManquantes('demandes', {
+  date_debut_coupure: 'TEXT',
+  heure_debut_coupure: 'TEXT',
+  date_retour_exploitation: 'TEXT',
+  heure_fin_coupure: 'TEXT',
+  nb_departs_rame: 'INTEGER',
+  nb_departs_impactes: 'INTEGER',
+  liste_departs_impactes: 'TEXT',
+});
+migrerColonnesManquantes('centrales', {
+  region_electrique: 'TEXT',
+});
 
 function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM parametres_impact').get();
