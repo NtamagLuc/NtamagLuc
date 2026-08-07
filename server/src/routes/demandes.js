@@ -115,7 +115,22 @@ demandesRouter.post('/preview', (req, res) => {
 
 demandesRouter.post('/', (req, res) => {
   const user = requireRole(req, ROLES_DEMANDEUR);
-  const { type, actifId, centraleDestId, etatCible, avecHierarchie, motif, datePrevue } = req.body;
+  const {
+    type,
+    actifId,
+    centraleDestId,
+    etatCible,
+    avecHierarchie,
+    motif,
+    datePrevue,
+    dateDebutCoupure,
+    heureDebutCoupure,
+    dateRetourExploitation,
+    heureFinCoupure,
+    nbDepartsRame,
+    nbDepartsImpactes,
+    listeDepartsImpactes,
+  } = req.body;
 
   if (!TYPES_VALIDES.includes(type)) {
     throw new HttpError(400, `Type de demande invalide (attendu : ${TYPES_VALIDES.join(', ')})`);
@@ -127,6 +142,14 @@ demandesRouter.post('/', (req, res) => {
   }
   if (type === 'DECOMMISSIONNEMENT' && etatCible && !ETATS_CIBLES_VALIDES.includes(etatCible)) {
     throw new HttpError(400, `etatCible invalide (attendu : ${ETATS_CIBLES_VALIDES.join(', ')})`);
+  }
+  const nbDepartsRameFinal = nbDepartsRame !== undefined && nbDepartsRame !== '' ? Number(nbDepartsRame) : null;
+  const nbDepartsImpactesFinal = nbDepartsImpactes !== undefined && nbDepartsImpactes !== '' ? Number(nbDepartsImpactes) : null;
+  if (nbDepartsRameFinal !== null && (!Number.isInteger(nbDepartsRameFinal) || nbDepartsRameFinal < 0)) {
+    throw new HttpError(400, 'nbDepartsRame doit être un entier positif');
+  }
+  if (nbDepartsImpactesFinal !== null && (!Number.isInteger(nbDepartsImpactesFinal) || nbDepartsImpactesFinal < 0)) {
+    throw new HttpError(400, 'nbDepartsImpactes doit être un entier positif');
   }
 
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(actifId);
@@ -150,8 +173,10 @@ demandesRouter.post('/', (req, res) => {
       `INSERT INTO demandes (
         type, etat_cible, deplacer_hierarchie, actif_id, actif_nom, centrale_source_id, centrale_source_nom,
         centrale_dest_id, centrale_dest_nom, statut, motif, date_prevue, simulation, niveau_impact,
-        demandeur_id, demandeur_nom
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_ATTENTE', ?, ?, ?, ?, ?, ?)`
+        demandeur_id, demandeur_nom,
+        date_debut_coupure, heure_debut_coupure, date_retour_exploitation, heure_fin_coupure,
+        nb_departs_rame, nb_departs_impactes, liste_departs_impactes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_ATTENTE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       type,
@@ -168,7 +193,14 @@ demandesRouter.post('/', (req, res) => {
       JSON.stringify(simulation),
       simulation.niveauImpact,
       user.id,
-      user.nom
+      user.nom,
+      type === 'RETRAIT' ? dateDebutCoupure || null : null,
+      type === 'RETRAIT' ? heureDebutCoupure || null : null,
+      type === 'RETRAIT' ? dateRetourExploitation || null : null,
+      type === 'RETRAIT' ? heureFinCoupure || null : null,
+      type === 'RETRAIT' ? nbDepartsRameFinal : null,
+      type === 'RETRAIT' ? nbDepartsImpactesFinal : null,
+      type === 'RETRAIT' ? listeDepartsImpactes || null : null
     );
 
   const demande = deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(info.lastInsertRowid));

@@ -117,6 +117,47 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
       <span>Date prévue (optionnel)</span>
       <input type="date" id="date-prevue" />
     </label>
+    ${
+      type === 'RETRAIT'
+        ? `
+      <h3 class="dashboard-subtitle">Détails de la coupure (pour la note d'arrêt)</h3>
+      <div class="field-row">
+        <label class="field">
+          <span>Date début de coupure</span>
+          <input type="date" id="date-debut-coupure" />
+        </label>
+        <label class="field">
+          <span>Heure début de coupure</span>
+          <input type="time" id="heure-debut-coupure" />
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Date de retour en exploitation</span>
+          <input type="date" id="date-retour-exploitation" />
+        </label>
+        <label class="field">
+          <span>Heure fin de coupure</span>
+          <input type="time" id="heure-fin-coupure" />
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Nombre de départs sur la rame</span>
+          <input type="number" id="nb-departs-rame" min="0" step="1" />
+        </label>
+        <label class="field">
+          <span>Nombre de départs impactés par la coupure</span>
+          <input type="number" id="nb-departs-impactes" min="0" step="1" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Liste des départs impactés</span>
+        <textarea id="liste-departs-impactes" rows="2" placeholder="Ex : Départ Bassa, Départ Bonabéri…"></textarea>
+      </label>
+    `
+        : ''
+    }
     <div class="modal-footer">
       <button class="btn btn-ghost" data-close>Annuler</button>
       <button class="btn ${type === 'DECOMMISSIONNEMENT' ? 'btn-danger' : 'btn-primary'}" id="confirm-btn" disabled>${SUBMIT_LABELS[type]}</button>
@@ -192,6 +233,13 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
             avecHierarchie: hierarchieCheckbox ? hierarchieCheckbox.checked : true,
             motif: motifInput.value.trim(),
             datePrevue: datePrevueInput.value || null,
+            dateDebutCoupure: dialog.querySelector('#date-debut-coupure')?.value || null,
+            heureDebutCoupure: dialog.querySelector('#heure-debut-coupure')?.value || null,
+            dateRetourExploitation: dialog.querySelector('#date-retour-exploitation')?.value || null,
+            heureFinCoupure: dialog.querySelector('#heure-fin-coupure')?.value || null,
+            nbDepartsRame: dialog.querySelector('#nb-departs-rame')?.value || null,
+            nbDepartsImpactes: dialog.querySelector('#nb-departs-impactes')?.value || null,
+            listeDepartsImpactes: dialog.querySelector('#liste-departs-impactes')?.value.trim() || null,
           });
           showToast('Demande soumise, en attente de vérification par l\'Exploitation.', 'success');
           close();

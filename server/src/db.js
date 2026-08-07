@@ -130,6 +130,13 @@ db.exec(`
     date_approbation TEXT,
     rejete_par TEXT,
     date_execution TEXT,
+    date_debut_coupure TEXT,
+    heure_debut_coupure TEXT,
+    date_retour_exploitation TEXT,
+    heure_fin_coupure TEXT,
+    nb_departs_rame INTEGER,
+    nb_departs_impactes INTEGER,
+    liste_departs_impactes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -176,6 +183,28 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_audit_log_centrale ON audit_log(centrale_id);
   CREATE INDEX IF NOT EXISTS idx_utilisateurs_centrale ON utilisateurs(centrale_id);
 `);
+
+// Migration additive : ajoute les colonnes manquantes sur une base déjà déployée (ex. Render)
+// où la table demandes existait avant l'ajout des champs de coupure — CREATE TABLE IF NOT EXISTS
+// ne modifie pas une table déjà créée.
+function migrerColonnesManquantes() {
+  const colonnesExistantes = new Set(db.prepare('PRAGMA table_info(demandes)').all().map((c) => c.name));
+  const colonnesAAjouter = {
+    date_debut_coupure: 'TEXT',
+    heure_debut_coupure: 'TEXT',
+    date_retour_exploitation: 'TEXT',
+    heure_fin_coupure: 'TEXT',
+    nb_departs_rame: 'INTEGER',
+    nb_departs_impactes: 'INTEGER',
+    liste_departs_impactes: 'TEXT',
+  };
+  for (const [colonne, type] of Object.entries(colonnesAAjouter)) {
+    if (!colonnesExistantes.has(colonne)) {
+      db.exec(`ALTER TABLE demandes ADD COLUMN ${colonne} ${type}`);
+    }
+  }
+}
+migrerColonnesManquantes();
 
 function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM parametres_impact').get();

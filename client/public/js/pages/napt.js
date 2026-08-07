@@ -4,9 +4,14 @@ import { escapeHtml, formatDate, formatNombre, DEMANDE_TYPE_LABELS } from '../ut
 // Génère une version imprimable de la NAPT (Note d'Arrêt pour Travaux Production),
 // annexe 4/10 du mémo SOCAD'EL, pré-remplie avec les données de la demande. Les champs
 // que l'application ne suit pas (référence note d'info, entreprise désignée, clients
-// industriels, départs électriques, retour en exploitation…) restent éditables à l'écran
-// avant impression : ce sont des champs papier destinés à être complétés par le CCR /
-// le responsable technique régional.
+// industriels…) restent éditables à l'écran avant impression : ce sont des champs
+// papier destinés à être complétés par le CCR / le responsable technique régional.
+
+function formatDateSimple(isoDate) {
+  if (!isoDate) return '';
+  const [annee, mois, jour] = isoDate.split('-');
+  return jour && mois && annee ? `${jour}/${mois}/${annee}` : isoDate;
+}
 
 function dateEtHeure(iso) {
   if (!iso) return { date: '', heure: '' };
@@ -30,7 +35,13 @@ export async function renderNapt({ id }) {
   const descendants = (demande.simulation?.descendants?.length ? demande.simulation.descendants : demande.simulationActuelle?.descendants) || [];
   const lignesOuvrages = descendants.length ? descendants : [{ nom: demande.actif_nom, contribution_mw: null }];
 
-  const debut = dateEtHeure(demande.mouvement?.date || demande.date_execution || demande.date_approbation);
+  // Les demandes de retrait créées via le formulaire renseignent ces champs ; à défaut
+  // (anciennes demandes, décommissionnement), on retombe sur la date d'exécution du
+  // mouvement et sur des champs vides éditables.
+  const aCoupureSaisie = !!(demande.date_debut_coupure || demande.heure_debut_coupure);
+  const debut = aCoupureSaisie
+    ? { date: formatDateSimple(demande.date_debut_coupure), heure: demande.heure_debut_coupure || '' }
+    : dateEtHeure(demande.mouvement?.date || demande.date_execution || demande.date_approbation);
   const puissanceTotale = lignesOuvrages.reduce((s, a) => s + (a.contribution_mw || 0), 0);
   const reference = `NAPT-${String(demande.id).padStart(4, '0')}`;
 
@@ -42,10 +53,6 @@ export async function renderNapt({ id }) {
 
     <div class="napt-doc">
       <div class="napt-header">
-        <div class="napt-header-left">
-          <div class="napt-memo">memo</div>
-          <div class="napt-annexe">ANNEXE 4/10 — Note d'arrêt pour travaux Production (document généré)</div>
-        </div>
         <img class="napt-logo" src="/assets/socadel-logo.jpeg" alt="SOCAD'EL" />
       </div>
 
@@ -95,6 +102,14 @@ export async function renderNapt({ id }) {
         </tr>
 
         <tr><td colspan="4" class="napt-section-title">Ouvrages et localités impactés</td></tr>
+        <tr>
+          <td colspan="2" class="napt-cell-label">Nombre de départs sur la rame :</td>
+          <td colspan="2" class="napt-cell-value">${demande.nb_departs_rame !== null && demande.nb_departs_rame !== undefined ? demande.nb_departs_rame : champEditable()}</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="napt-cell-label">Nombre de départs impactés par la coupure :</td>
+          <td colspan="2" class="napt-cell-value">${demande.nb_departs_impactes !== null && demande.nb_departs_impactes !== undefined ? demande.nb_departs_impactes : champEditable()}</td>
+        </tr>
         <tr class="napt-table-head-row">
           <td class="napt-th">Ouvrage / actif impacté</td>
           <td class="napt-th">Date début coupure</td>
@@ -120,13 +135,13 @@ export async function renderNapt({ id }) {
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label">
-            Date retour en exploitation : ${champEditable()} &nbsp;&nbsp; Heure fin coupure : ${champEditable()}
+            Date retour en exploitation : ${champEditable(formatDateSimple(demande.date_retour_exploitation))} &nbsp;&nbsp; Heure fin coupure : ${champEditable(demande.heure_fin_coupure || '')}
           </td>
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label" style="vertical-align:top;">
             Liste des départs impactés <em>(mettre en vert les départs partiellement/totalement repris par une autre source)</em> :
-            <div class="napt-blank-area" contenteditable="true"></div>
+            <div class="napt-blank-area" contenteditable="true">${escapeHtml(demande.liste_departs_impactes || '')}</div>
           </td>
         </tr>
 
@@ -154,8 +169,6 @@ export async function renderNapt({ id }) {
           </td>
         </tr>
       </table>
-
-      <p class="napt-footer-note">Document généré automatiquement le ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())} à partir de la demande #${demande.id} de l'application de gestion des actifs SOCAD'EL — modèle NAPT (Annexe 4/10).</p>
     </div>
   `;
 
