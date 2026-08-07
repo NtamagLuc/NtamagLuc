@@ -43,7 +43,11 @@ export async function renderNapt({ id }) {
     ? { date: formatDateSimple(demande.date_debut_coupure), heure: demande.heure_debut_coupure || '' }
     : dateEtHeure(demande.mouvement?.date || demande.date_execution || demande.date_approbation);
   const puissanceTotale = lignesOuvrages.reduce((s, a) => s + (a.contribution_mw || 0), 0);
-  const reference = `NAPT-${String(demande.id).padStart(4, '0')}`;
+  // Les demandes de retrait transmises portent un code DDR officiel (DDR_AA/JJ/MM/YY/ZZ-nom
+  // de la centrale), généré à la validation par le chargé d'exploitation. À défaut (autres
+  // types de demande, ou anciennes demandes transmises avant ce champ), on retombe sur une
+  // référence NAPT générique basée sur l'identifiant de la demande.
+  const reference = demande.code_reference || `NAPT-${String(demande.id).padStart(4, '0')}`;
 
   app.innerHTML = `
     <div class="napt-toolbar no-print">

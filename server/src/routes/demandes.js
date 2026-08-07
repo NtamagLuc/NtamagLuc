@@ -13,6 +13,7 @@ import { simulerMiseHorsOuEnService, simulerDeplacement } from '../services/perf
 import { insertMouvement } from '../services/mouvements.js';
 import { notifyUser, notifyRole, notifyRoleCentrale } from '../lib/notifications.js';
 import { logAudit } from '../lib/audit.js';
+import { REGIONS_ELECTRIQUES } from '../lib/regions.js';
 
 export const demandesRouter = new Router();
 
@@ -58,6 +59,39 @@ function estSimulationObsolete(demande, simulationActuelle) {
     return true;
   }
   return false;
+}
+
+// Code de référence officiel d'une DDR (Demande De Retrait), au format
+// DDR_AA/JJ/MM/YY/ZZ-nom de la centrale : AA = code de la région électrique de la
+// centrale, JJ/MM/YY = date de validation (transmission) par le chargé d'exploitation,
+// ZZ = numéro d'ordre dans le mois pour cette région (repart de 1 à chaque nouveau mois).
+// Généré une seule fois, au moment de la transmission, puis figé sur la demande.
+function genererCodeReferenceDDR(centraleId, centraleNom) {
+  const centrale = db.prepare('SELECT region_electrique FROM centrales WHERE id = ?').get(centraleId);
+  const regionInfo = REGIONS_ELECTRIQUES.find((r) => r.sigle === centrale?.region_electrique);
+  const aa = regionInfo ? regionInfo.code : 'XX';
+
+  const maintenant = new Date();
+  const jj = String(maintenant.getUTCDate()).padStart(2, '0');
+  const mm = String(maintenant.getUTCMonth() + 1).padStart(2, '0');
+  const yy = String(maintenant.getUTCFullYear()).slice(-2);
+  const debutMois = `${maintenant.getUTCFullYear()}-${mm}-01`;
+  const moisSuivant = maintenant.getUTCMonth() === 11 ? 1 : maintenant.getUTCMonth() + 2;
+  const anneeMoisSuivant = maintenant.getUTCMonth() === 11 ? maintenant.getUTCFullYear() + 1 : maintenant.getUTCFullYear();
+  const finMois = `${anneeMoisSuivant}-${String(moisSuivant).padStart(2, '0')}-01`;
+
+  const { n } = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM demandes d
+       JOIN centrales c ON c.id = d.centrale_source_id
+       WHERE d.type = 'RETRAIT' AND d.code_reference IS NOT NULL
+         AND c.region_electrique = ?
+         AND d.date_exploitation >= ? AND d.date_exploitation < ?`
+    )
+    .get(centrale?.region_electrique ?? '__aucune__', debutMois, finMois);
+  const zz = String(n + 1).padStart(2, '0');
+
+  return `DDR_${aa}/${jj}/${mm}/${yy}/${zz}-${centraleNom}`;
 }
 
 demandesRouter.get('/', (req, res) => {
@@ -298,7 +332,7 @@ demandesRouter.post('/:id/relancer-simulation', (req, res) => {
   db.prepare(
     `UPDATE demandes SET statut = 'EN_ATTENTE', simulation = ?, niveau_impact = ?, simulation_obsolete = 0,
      exploitation_id = NULL, exploitation_nom = NULL, commentaire_exploitation = NULL, date_exploitation = NULL,
-     updated_at = datetime('now') WHERE id = ?`
+     code_reference = NULL, updated_at = datetime('now') WHERE id = ?`
   ).run(JSON.stringify(simulation), simulation.niveauImpact, demande.id);
 
   notifyRoleCentrale(
@@ -341,9 +375,10 @@ demandesRouter.post('/:id/transmettre', (req, res) => {
     throw new HttpError(409, "La situation a changé depuis la création de la demande : la simulation est obsolète. Relancez la simulation avant de transmettre.");
   }
 
+  const codeReference = demande.type === 'RETRAIT' ? genererCodeReferenceDDR(demande.centrale_source_id, demande.centrale_source_nom) : null;
   db.prepare(
-    `UPDATE demandes SET statut = 'TRANSMISE', exploitation_id = ?, exploitation_nom = ?, commentaire_exploitation = ?, date_exploitation = datetime('now'), updated_at = datetime('now') WHERE id = ?`
-  ).run(user.id, user.nom, req.body?.commentaire || null, demande.id);
+    `UPDATE demandes SET statut = 'TRANSMISE', exploitation_id = ?, exploitation_nom = ?, commentaire_exploitation = ?, date_exploitation = datetime('now'), code_reference = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(user.id, user.nom, req.body?.commentaire || null, codeReference, demande.id);
 
   const libelle = LIBELLES[demande.type];
   const suffixe = demande.niveau_impact === 'CRITIQUE' ? ' [IMPACT CRITIQUE — approbation Administrateur requise]' : '';

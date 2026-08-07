@@ -138,6 +138,7 @@ db.exec(`
     nb_departs_rame INTEGER,
     nb_departs_impactes INTEGER,
     liste_departs_impactes TEXT,
+    code_reference TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -204,6 +205,7 @@ migrerColonnesManquantes('demandes', {
   nb_departs_rame: 'INTEGER',
   nb_departs_impactes: 'INTEGER',
   liste_departs_impactes: 'TEXT',
+  code_reference: 'TEXT',
 });
 migrerColonnesManquantes('centrales', {
   region_electrique: 'TEXT',
