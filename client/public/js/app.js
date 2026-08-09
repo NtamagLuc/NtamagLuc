@@ -10,6 +10,7 @@ import { renderNapt } from './pages/napt.js';
 import { renderUtilisateurs } from './pages/utilisateurs.js';
 import { renderReporting } from './pages/reporting.js';
 import { renderParametres } from './pages/parametres.js';
+import { renderEntreprises } from './pages/entreprises.js';
 
 route('/login', renderLogin);
 route('/', renderDashboard);
@@ -22,5 +23,6 @@ route('/utilisateurs', renderUtilisateurs);
 route('/reporting', renderReporting);
 route('/historique', renderHistorique);
 route('/parametres', renderParametres);
+route('/entreprises', renderEntreprises);
 
 startRouter();

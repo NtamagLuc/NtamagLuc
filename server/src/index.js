@@ -14,6 +14,7 @@ import { notificationsRouter } from './routes/notifications.js';
 import { reportingRouter } from './routes/reporting.js';
 import { auditRouter } from './routes/audit.js';
 import { parametresRouter } from './routes/parametres.js';
+import { entreprisesRouter } from './routes/entreprises.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
@@ -31,6 +32,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/reporting', reportingRouter);
 app.use('/api/audit-log', auditRouter);
 app.use('/api/parametres', parametresRouter);
+app.use('/api/entreprises', entreprisesRouter);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

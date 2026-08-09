@@ -114,4 +114,10 @@ export const api = {
   // Reporting
   getReportingSummary: () => request('GET', '/api/reporting/summary'),
   exportUrl: (entity) => `/api/reporting/export/${entity}`,
+
+  // Entreprises (référentiel des entreprises désignées pour les travaux)
+  getEntreprises: () => request('GET', '/api/entreprises'),
+  createEntreprise: (payload) => request('POST', '/api/entreprises', payload),
+  updateEntreprise: (id, payload) => request('PUT', `/api/entreprises/${id}`, payload),
+  deleteEntreprise: (id) => request('DELETE', `/api/entreprises/${id}`),
 };

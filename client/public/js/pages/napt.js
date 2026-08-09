@@ -94,7 +94,7 @@ export async function renderNapt({ id }) {
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Entreprise(s) désignée(s) pour les travaux :</td>
-          <td colspan="2" class="napt-cell-value">${champEditable()}</td>
+          <td colspan="2" class="napt-cell-value">${demande.entreprise_designee_nom ? escapeHtml(demande.entreprise_designee_nom) : champEditable()}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Centrale concernée :</td>
@@ -151,13 +151,17 @@ export async function renderNapt({ id }) {
 
         <tr>
           <td class="napt-cell-label">Clients Industriels impactés ? (cocher la case)</td>
-          <td class="napt-cell-value"><label><input type="checkbox" /> OUI</label> &nbsp; <label><input type="checkbox" /> NON</label></td>
-          <td colspan="2" class="napt-cell-label">Si Oui, préciser lesquels : ${champEditable()}</td>
+          <td class="napt-cell-value">
+            <label><input type="checkbox" disabled ${demande.clients_industriels_impactes === 1 ? 'checked' : ''} /> OUI</label>
+            &nbsp;
+            <label><input type="checkbox" disabled ${demande.clients_industriels_impactes === 0 ? 'checked' : ''} /> NON</label>
+          </td>
+          <td colspan="2" class="napt-cell-label">Si Oui, préciser lesquels : ${demande.liste_clients_industriels ? escapeHtml(demande.liste_clients_industriels) : champEditable()}</td>
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label" style="vertical-align:top;">
             Liste des localités impactées :
-            <div class="napt-blank-area" contenteditable="true">${escapeHtml(centrale.localisation || '')}</div>
+            <div class="napt-blank-area" contenteditable="true">${escapeHtml(demande.liste_localites_impactees || centrale.localisation || '')}</div>
           </td>
         </tr>
 

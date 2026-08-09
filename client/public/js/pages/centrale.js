@@ -135,7 +135,8 @@ export async function renderCentraleDetail({ id }) {
       <div id="section-contribution"></div>
     </section>
 
-    <h2 class="section-title">Hiérarchie des équipements (${centrale.actifs.length})</h2>
+    <h2 class="section-title">Équipements (${centrale.actifs.length})</h2>
+    <p class="page-subtitle">Actifs de premier niveau — ouvrez le détail d'un actif pour voir ses sous-actifs.</p>
     <div id="actif-tree-container">${renderActifTree(centrale.actifs)}</div>
   `;
 

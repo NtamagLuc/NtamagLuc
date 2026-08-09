@@ -62,10 +62,12 @@ export function renderActionButtons(actif, { size = 'sm' } = {}) {
   return boutons.join('');
 }
 
-function renderNode(actif, depth) {
+// N'affiche que les actifs de premier niveau (actifs mères) : les actifs enfants ne sont
+// visibles qu'en ouvrant le détail de leur actif mère (page actif.js), pas ici en ligne.
+function renderNode(actif) {
   const inactif = ['HORS_SERVICE', 'DECOMMISSIONNE', 'REFORME', 'EN_TRANSFERT'].includes(actif.statut);
   return `
-    <li class="actif-node" style="--depth:${depth}">
+    <li class="actif-node">
       <div class="actif-row ${inactif ? 'actif-row-retire' : ''}">
         <div class="actif-info">
           <span class="actif-nom">${actif.enfants.length ? '🗂️' : '🔧'} ${escapeHtml(actif.nom)}</span>
@@ -74,17 +76,13 @@ function renderNode(actif, depth) {
           <span class="badge ${STATUT_CLASSES[actif.statut] || 'badge-neutral'}">${STATUT_LABELS[actif.statut] || actif.statut}</span>
           <span class="badge ${CRITICITE_CLASSES[actif.criticite] || 'badge-neutral'}">${CRITICITE_LABELS[actif.criticite] || actif.criticite}</span>
           ${actif.contribution_mw ? `<span class="actif-contrib">${formatNombre(actif.contribution_mw)} MW</span>` : ''}
+          ${actif.enfants.length ? `<span class="badge badge-neutral">${actif.enfants.length} sous-actif(s)</span>` : ''}
         </div>
         <div class="actif-actions">
-          <a class="btn btn-ghost btn-sm" href="#/actifs/${actif.id}">Détail</a>
+          <a class="btn btn-ghost btn-sm" href="#/actifs/${actif.id}">${actif.enfants.length ? 'Voir les sous-actifs' : 'Détail'}</a>
           ${renderActionButtons(actif)}
         </div>
       </div>
-      ${
-        actif.enfants.length
-          ? `<ul class="actif-children">${actif.enfants.map((e) => renderNode(e, depth + 1)).join('')}</ul>`
-          : ''
-      }
     </li>
   `;
 }
@@ -93,6 +91,6 @@ export function renderActifTree(actifs) {
   if (!actifs.length) {
     return '<p class="empty-state">Aucun actif enregistré pour cette centrale.</p>';
   }
-  const tree = buildTree(actifs);
-  return `<ul class="actif-tree">${tree.map((n) => renderNode(n, 0)).join('')}</ul>`;
+  const racines = buildTree(actifs);
+  return `<ul class="actif-tree">${racines.map(renderNode).join('')}</ul>`;
 }

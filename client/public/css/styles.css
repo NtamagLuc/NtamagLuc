@@ -1025,6 +1025,19 @@ body.has-sidebar #sidebar-root {
   width: auto;
 }
 
+.field-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
+.field-fieldset legend {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0 4px;
+}
+
 .banner-info {
   display: block;
   background: #eff6ff;
@@ -1596,6 +1609,10 @@ body.has-sidebar #sidebar-root {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
   body.has-sidebar #sidebar-root,
   .no-print {
     display: none !important;
@@ -1610,8 +1627,44 @@ body.has-sidebar #sidebar-root {
     border: none;
     max-width: none;
     padding: 0;
+    font-size: 0.68rem;
   }
   .napt-input {
     border-bottom: none;
+  }
+  .napt-header {
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+  }
+  .napt-logo {
+    height: 34px;
+  }
+  .napt-societe {
+    font-size: 0.95rem;
+  }
+  .napt-titre {
+    font-size: 0.82rem;
+    margin-top: 2px;
+  }
+  .napt-table td {
+    padding: 2px 6px;
+  }
+  .napt-field-row {
+    margin-bottom: 1px;
+  }
+  .napt-section-title {
+    padding: 2px 8px;
+  }
+  .napt-blank-area {
+    min-height: 16px;
+    padding: 1px 2px;
+  }
+  .napt-signature-cell {
+    padding: 6px 8px;
+  }
+  .napt-signature-line {
+    margin-top: 10px;
+    padding-top: 2px;
+    min-width: 180px;
   }
 }

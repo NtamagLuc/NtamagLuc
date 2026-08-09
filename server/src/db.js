@@ -102,6 +102,13 @@ db.exec(`
     expires_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS entreprises (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom TEXT NOT NULL UNIQUE,
+    statut TEXT NOT NULL DEFAULT 'ACTIVE',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS demandes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
@@ -139,6 +146,11 @@ db.exec(`
     nb_departs_impactes INTEGER,
     liste_departs_impactes TEXT,
     code_reference TEXT,
+    entreprise_designee_id INTEGER REFERENCES entreprises(id),
+    entreprise_designee_nom TEXT,
+    clients_industriels_impactes INTEGER,
+    liste_clients_industriels TEXT,
+    liste_localites_impactees TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -206,6 +218,11 @@ migrerColonnesManquantes('demandes', {
   nb_departs_impactes: 'INTEGER',
   liste_departs_impactes: 'TEXT',
   code_reference: 'TEXT',
+  entreprise_designee_id: 'INTEGER REFERENCES entreprises(id)',
+  entreprise_designee_nom: 'TEXT',
+  clients_industriels_impactes: 'INTEGER',
+  liste_clients_industriels: 'TEXT',
+  liste_localites_impactees: 'TEXT',
 });
 migrerColonnesManquantes('centrales', {
   region_electrique: 'TEXT',
@@ -266,6 +283,14 @@ function seedIfEmpty() {
     c1 = rows.find((r) => r.code === 'CTH-DLA')?.id;
     c2 = rows.find((r) => r.code === 'CHY-SGL')?.id;
     c3 = rows.find((r) => r.code === 'CSO-MRA')?.id;
+  }
+
+  const { count: nbEntreprises } = db.prepare('SELECT COUNT(*) AS count FROM entreprises').get();
+  if (nbEntreprises === 0) {
+    const insertEntreprise = db.prepare("INSERT INTO entreprises (nom, statut) VALUES (?, 'ACTIVE')");
+    insertEntreprise.run('SOCAD\'EL — Régie interne');
+    insertEntreprise.run('Entreprise Générale des Travaux Électriques (EGTE)');
+    insertEntreprise.run('Cameroun Maintenance Industrielle (CMI)');
   }
 
   const { count: nbUsers } = db.prepare('SELECT COUNT(*) AS count FROM utilisateurs').get();

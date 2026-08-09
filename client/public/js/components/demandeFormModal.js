@@ -155,6 +155,24 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
         <span>Liste des départs impactés</span>
         <textarea id="liste-departs-impactes" rows="2" placeholder="Ex : Départ Bassa, Départ Bonabéri…"></textarea>
       </label>
+      <label class="field">
+        <span>Liste des localités impactées</span>
+        <textarea id="liste-localites-impactees" rows="2" placeholder="Ex : Bonabéri, Bassa, Akwa…"></textarea>
+      </label>
+      <label class="field">
+        <span>Entreprise désignée pour les travaux</span>
+        <select id="entreprise-designee"><option value="">Chargement…</option></select>
+      </label>
+      <fieldset class="field field-fieldset">
+        <legend>Clients industriels impactés ?</legend>
+        <div class="field-row">
+          <label class="field field-checkbox"><input type="radio" name="clients-industriels" id="clients-industriels-oui" value="oui" /> Oui</label>
+          <label class="field field-checkbox"><input type="radio" name="clients-industriels" id="clients-industriels-non" value="non" /> Non</label>
+        </div>
+        <div id="liste-clients-industriels-wrapper" style="display:none;">
+          <textarea id="liste-clients-industriels" rows="2" placeholder="Lister les clients industriels impactés…"></textarea>
+        </div>
+      </fieldset>
     `
         : ''
     }
@@ -216,12 +234,37 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
         await chargerSimulation();
       }
 
+      if (type === 'RETRAIT') {
+        const entrepriseSelect = dialog.querySelector('#entreprise-designee');
+        const entreprises = (await api.getEntreprises()).filter((e) => e.statut === 'ACTIVE');
+        entrepriseSelect.innerHTML =
+          '<option value="">— Non renseignée —</option>' +
+          entreprises.map((e) => `<option value="${e.id}">${escapeHtml(e.nom)}</option>`).join('');
+
+        const radioOui = dialog.querySelector('#clients-industriels-oui');
+        const radioNon = dialog.querySelector('#clients-industriels-non');
+        const listeWrapper = dialog.querySelector('#liste-clients-industriels-wrapper');
+        [radioOui, radioNon].forEach((radio) =>
+          radio.addEventListener('change', () => {
+            listeWrapper.style.display = radioOui.checked ? '' : 'none';
+          })
+        );
+      }
+
       confirmBtn.addEventListener('click', async () => {
         if (!motifInput.value.trim()) {
           motifInput.focus();
           showToast('Veuillez indiquer un motif pour cette demande.', 'error');
           return;
         }
+        const radioOui = dialog.querySelector('#clients-industriels-oui');
+        const radioNon = dialog.querySelector('#clients-industriels-non');
+        const clientsIndustrielsImpactes = radioOui?.checked ? true : radioNon?.checked ? false : undefined;
+        if (type === 'RETRAIT' && clientsIndustrielsImpactes === true && !dialog.querySelector('#liste-clients-industriels')?.value.trim()) {
+          showToast('Veuillez lister les clients industriels impactés, ou sélectionner « Non ».', 'error');
+          return;
+        }
+
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Envoi…';
         try {
@@ -240,6 +283,12 @@ export function openDemandeModal(actif, type, { onDone } = {}) {
             nbDepartsRame: dialog.querySelector('#nb-departs-rame')?.value || null,
             nbDepartsImpactes: dialog.querySelector('#nb-departs-impactes')?.value || null,
             listeDepartsImpactes: dialog.querySelector('#liste-departs-impactes')?.value.trim() || null,
+            listeLocalitesImpactees: dialog.querySelector('#liste-localites-impactees')?.value.trim() || null,
+            entrepriseDesigneeId: dialog.querySelector('#entreprise-designee')?.value
+              ? Number(dialog.querySelector('#entreprise-designee').value)
+              : null,
+            clientsIndustrielsImpactes,
+            listeClientsIndustriels: clientsIndustrielsImpactes ? dialog.querySelector('#liste-clients-industriels')?.value.trim() || null : null,
           });
           showToast('Demande soumise, en attente de vérification par l\'Exploitation.', 'success');
           close();

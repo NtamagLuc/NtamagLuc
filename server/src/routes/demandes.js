@@ -164,6 +164,10 @@ demandesRouter.post('/', (req, res) => {
     nbDepartsRame,
     nbDepartsImpactes,
     listeDepartsImpactes,
+    entrepriseDesigneeId,
+    clientsIndustrielsImpactes,
+    listeClientsIndustriels,
+    listeLocalitesImpactees,
   } = req.body;
 
   if (!TYPES_VALIDES.includes(type)) {
@@ -184,6 +188,12 @@ demandesRouter.post('/', (req, res) => {
   }
   if (nbDepartsImpactesFinal !== null && (!Number.isInteger(nbDepartsImpactesFinal) || nbDepartsImpactesFinal < 0)) {
     throw new HttpError(400, 'nbDepartsImpactes doit être un entier positif');
+  }
+  const clientsIndustrielsImpactesFinal = typeof clientsIndustrielsImpactes === 'boolean' ? (clientsIndustrielsImpactes ? 1 : 0) : null;
+  let entreprise = null;
+  if (entrepriseDesigneeId) {
+    entreprise = db.prepare("SELECT * FROM entreprises WHERE id = ? AND statut = 'ACTIVE'").get(entrepriseDesigneeId);
+    if (!entreprise) throw new HttpError(400, 'entrepriseDesigneeId invalide (entreprise introuvable ou inactive)');
   }
 
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(actifId);
@@ -209,8 +219,10 @@ demandesRouter.post('/', (req, res) => {
         centrale_dest_id, centrale_dest_nom, statut, motif, date_prevue, simulation, niveau_impact,
         demandeur_id, demandeur_nom,
         date_debut_coupure, heure_debut_coupure, date_retour_exploitation, heure_fin_coupure,
-        nb_departs_rame, nb_departs_impactes, liste_departs_impactes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_ATTENTE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        nb_departs_rame, nb_departs_impactes, liste_departs_impactes,
+        entreprise_designee_id, entreprise_designee_nom, clients_industriels_impactes,
+        liste_clients_industriels, liste_localites_impactees
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_ATTENTE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       type,
@@ -234,7 +246,12 @@ demandesRouter.post('/', (req, res) => {
       type === 'RETRAIT' ? heureFinCoupure || null : null,
       type === 'RETRAIT' ? nbDepartsRameFinal : null,
       type === 'RETRAIT' ? nbDepartsImpactesFinal : null,
-      type === 'RETRAIT' ? listeDepartsImpactes || null : null
+      type === 'RETRAIT' ? listeDepartsImpactes || null : null,
+      type === 'RETRAIT' ? entreprise?.id ?? null : null,
+      type === 'RETRAIT' ? entreprise?.nom ?? null : null,
+      type === 'RETRAIT' ? clientsIndustrielsImpactesFinal : null,
+      type === 'RETRAIT' ? listeClientsIndustriels || null : null,
+      type === 'RETRAIT' ? listeLocalitesImpactees || null : null
     );
 
   const demande = deserializeDemande(db.prepare('SELECT * FROM demandes WHERE id = ?').get(info.lastInsertRowid));

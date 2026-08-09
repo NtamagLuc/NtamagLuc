@@ -58,6 +58,7 @@ export async function renderNavbar() {
   ];
   if (isAdmin()) {
     links.push({ path: '/utilisateurs', label: 'Utilisateurs', icon: '👥' });
+    links.push({ path: '/entreprises', label: 'Entreprises', icon: '🏗️' });
     links.push({ path: '/parametres', label: 'Paramètres', icon: '⚙️' });
   }
 
