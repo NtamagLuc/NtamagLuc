@@ -24,8 +24,8 @@ function openConfirmationModal({ titre, message, confirmLabel, confirmClass = 'b
   const bodyHtml = `
     <p>${escapeHtml(message)}</p>
     <label class="field">
-      <span>Commentaire (optionnel)</span>
-      <textarea id="confirm-commentaire" rows="2"></textarea>
+      <span>Motif / commentaire</span>
+      <textarea id="confirm-commentaire" rows="2" required></textarea>
     </label>
     <label class="field field-checkbox">
       <input type="checkbox" id="confirm-checkbox" />
@@ -40,19 +40,27 @@ function openConfirmationModal({ titre, message, confirmLabel, confirmClass = 'b
   openModal(titre, bodyHtml, {
     onMount: (dialog, close) => {
       const checkbox = dialog.querySelector('#confirm-checkbox');
+      const commentaireInput = dialog.querySelector('#confirm-commentaire');
       const actionBtn = dialog.querySelector('#confirm-action-btn');
-      checkbox.addEventListener('change', () => {
-        actionBtn.disabled = !checkbox.checked;
-      });
+      const updateButtonState = () => {
+        actionBtn.disabled = !checkbox.checked || !commentaireInput.value.trim();
+      };
+      checkbox.addEventListener('change', updateButtonState);
+      commentaireInput.addEventListener('input', updateButtonState);
       actionBtn.addEventListener('click', async () => {
-        const commentaire = dialog.querySelector('#confirm-commentaire').value.trim();
+        const commentaire = commentaireInput.value.trim();
+        if (!commentaire) {
+          showToast('Un motif / commentaire est requis.', 'error');
+          commentaireInput.focus();
+          return;
+        }
         actionBtn.disabled = true;
         try {
           await onConfirm(commentaire);
           close();
         } catch (err) {
           showToast(err.message, 'error');
-          actionBtn.disabled = !checkbox.checked;
+          updateButtonState();
         }
       });
     },

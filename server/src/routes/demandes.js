@@ -381,6 +381,7 @@ demandesRouter.post('/:id/transmettre', (req, res) => {
   if (demande.statut !== 'EN_ATTENTE') {
     throw new HttpError(400, 'Seule une demande en attente peut être transmise');
   }
+  if (!req.body?.commentaire) throw new HttpError(400, 'Un motif / commentaire est requis');
 
   const simulationActuelle = simuler(demande.type, demande.actif_id, {
     centraleDestId: demande.centrale_dest_id,
@@ -461,6 +462,7 @@ demandesRouter.post('/:id/approuver', (req, res) => {
   if (demande.niveau_impact === 'CRITIQUE' && user.role !== 'ADMINISTRATEUR') {
     throw new HttpError(403, "Cette demande a un niveau d'impact critique : seul un Administrateur peut l'approuver");
   }
+  if (!req.body?.commentaire) throw new HttpError(400, 'Un motif / commentaire est requis');
 
   const actif = db.prepare('SELECT * FROM actifs WHERE id = ?').get(demande.actif_id);
   if (!actif) throw new HttpError(404, "L'actif de cette demande n'existe plus");
