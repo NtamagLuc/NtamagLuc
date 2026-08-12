@@ -34,11 +34,7 @@ export function renderActionButtons(actif, { size = 'sm' } = {}) {
     return '';
   }
 
-  if (statut === 'HORS_SERVICE') {
-    if (peutDemander) {
-      boutons.push(`<button class="${cls} btn-success" data-action="demander-remise" data-id="${actif.id}">Demander une remise en service</button>`);
-    }
-  } else {
+  if (statut !== 'HORS_SERVICE') {
     if (peutDemander) {
       boutons.push(`<button class="${cls} btn-warning" data-action="demander-retrait" data-id="${actif.id}">Demander un retrait</button>`);
     }
@@ -52,11 +48,6 @@ export function renderActionButtons(actif, { size = 'sm' } = {}) {
     if (statut === 'EN_REPARATION' && peutOperer) {
       boutons.push(`<button class="${cls} btn-success" data-action="reparation-fin" data-id="${actif.id}">Fin de réparation</button>`);
     }
-  }
-
-  if (peutDemander) {
-    boutons.push(`<button class="${cls} btn-primary" data-action="demander-deplacement" data-id="${actif.id}">Demander un déplacement</button>`);
-    boutons.push(`<button class="${cls} btn-danger" data-action="demander-decommissionnement" data-id="${actif.id}">Décommissionner</button>`);
   }
 
   return boutons.join('');

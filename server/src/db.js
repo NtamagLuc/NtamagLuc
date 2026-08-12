@@ -228,6 +228,10 @@ migrerColonnesManquantes('centrales', {
   region_electrique: 'TEXT',
 });
 
+// Correction ponctuelle : le sigle de la région 01 était initialement saisi "DRO" au lieu de
+// "DRD". Corrige les centrales déjà enregistrées avec l'ancien sigle sur une base déployée.
+db.exec("UPDATE centrales SET region_electrique = 'DRD' WHERE region_electrique = 'DRO'");
+
 function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM parametres_impact').get();
   if (count === 0) {

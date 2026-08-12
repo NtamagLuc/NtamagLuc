@@ -18,7 +18,7 @@ export const TYPE_CENTRALE_LABELS = {
 
 // Régions électriques SOCAD'EL.
 export const REGIONS_ELECTRIQUES = [
-  { code: '01', sigle: 'DRO' },
+  { code: '01', sigle: 'DRD' },
   { code: '02', sigle: 'DRY' },
   { code: '03', sigle: 'DRNEA' },
   { code: '04', sigle: 'DRONO' },

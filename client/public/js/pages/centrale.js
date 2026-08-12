@@ -476,7 +476,7 @@ export async function renderCentraleDetail({ id }) {
   function renderSimulationSection() {
     const actifsSimulables = centrale.actifs.filter((a) => !['DECOMMISSIONNE', 'REFORME'].includes(a.statut));
     document.getElementById('section-simulation').innerHTML = `
-      <p class="dashboard-note">Simulation virtuelle sans impact réel : rien n'est modifié tant qu'une demande n'a pas suivi le circuit complet de validation.</p>
+      <p class="dashboard-note">Simulation virtuelle de l'impact d'un retrait, sans impact réel : rien n'est modifié tant qu'une demande n'a pas suivi le circuit complet de validation.</p>
       <div class="filters-bar">
         <label class="field field-inline">
           <span>Actif</span>
@@ -484,58 +484,17 @@ export async function renderCentraleDetail({ id }) {
             ${actifsSimulables.map((a) => `<option value="${a.id}">${escapeHtml(a.nom)} (${escapeHtml(a.code)})</option>`).join('')}
           </select>
         </label>
-        <label class="field field-inline">
-          <span>Opération</span>
-          <select id="sim-type">
-            <option value="RETRAIT">Retrait</option>
-            <option value="DEPLACEMENT">Déplacement</option>
-            <option value="DECOMMISSIONNEMENT">Décommissionnement</option>
-            <option value="REMISE_EN_SERVICE">Remise en service</option>
-          </select>
-        </label>
-        <label class="field field-inline" id="sim-dest-field" style="display:none;">
-          <span>Centrale destination</span>
-          <select id="sim-dest"><option value="">Chargement…</option></select>
-        </label>
         <button class="btn btn-primary btn-sm" id="sim-lancer-btn">Simuler l'impact</button>
       </div>
       <div id="sim-resultat"></div>
     `;
 
-    const typeSelect = document.getElementById('sim-type');
-    const destField = document.getElementById('sim-dest-field');
-    const destSelect = document.getElementById('sim-dest');
-    let destChargees = false;
-
-    typeSelect.addEventListener('change', async () => {
-      if (typeSelect.value === 'DEPLACEMENT') {
-        destField.style.display = '';
-        if (!destChargees) {
-          const centrales = await api.getCentraleDestinations();
-          const autres = centrales.filter((c) => c.id !== centrale.id);
-          destSelect.innerHTML = autres.length
-            ? autres.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join('')
-            : '<option value="">Aucune autre centrale active</option>';
-          destChargees = true;
-        }
-      } else {
-        destField.style.display = 'none';
-      }
-    });
-
     document.getElementById('sim-lancer-btn').addEventListener('click', async () => {
       const actifId = Number(document.getElementById('sim-actif').value);
-      const type = typeSelect.value;
       const resultBox = document.getElementById('sim-resultat');
       resultBox.innerHTML = '<p class="loading">Calcul de l\'impact…</p>';
       try {
-        const simulation = await api.previewDemande({
-          type,
-          actifId,
-          centraleDestId: type === 'DEPLACEMENT' ? Number(destSelect.value) || null : null,
-          etatCible: type === 'DECOMMISSIONNEMENT' ? 'DECOMMISSIONNE' : undefined,
-          avecHierarchie: true,
-        });
+        const simulation = await api.previewDemande({ type: 'RETRAIT', actifId, avecHierarchie: true });
         resultBox.innerHTML = renderSimulation(simulation);
       } catch (err) {
         resultBox.innerHTML = `<p class="error-state">${escapeHtml(err.message)}</p>`;

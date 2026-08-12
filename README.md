@@ -6,14 +6,20 @@ production d'électricité de la **Société Camerounaise d'Electricité
 sous-actifs organisés en hiérarchie, avec suivi de leur localisation, leur
 état, leur puissance et leur historique complet.
 
-Les opérations critiques — **retrait du service**, **déplacement entre
-centrales**, **décommissionnement définitif** et **remise en service** —
-suivent toutes le même principe fondamental : **demande → simulation
-obligatoire de l'impact → vérification par l'Exploitation → approbation du
-Chef Centrale (= exécution immédiate) → recalcul des performances →
-historisation → notification**. Aucune de ces opérations ne modifie l'état
-réel d'un actif avant qu'une simulation ait été calculée et que le circuit
-de décision à deux niveaux ait été respecté.
+L'application se concentre sur un seul circuit métier : la **demande de
+retrait** d'un actif en service. Elle suit le principe **demande →
+simulation obligatoire de l'impact → vérification par l'Exploitation →
+approbation du Chef Centrale (= exécution immédiate) → recalcul des
+performances → historisation → notification**. Aucun retrait ne modifie
+l'état réel d'un actif avant qu'une simulation ait été calculée et que le
+circuit de décision à deux niveaux ait été respecté.
+
+> Le moteur de simulation et le modèle de données supportent également le
+> déplacement entre centrales, le décommissionnement définitif et la
+> remise en service (hérités d'une version antérieure), mais **aucun bouton
+> de l'interface ne permet plus d'en créer** : seul le retrait est exposé.
+> Ce code reste en place pour ne pas casser l'historique d'éventuelles
+> demandes de ce type déjà enregistrées.
 
 ## Aperçu fonctionnel
 
@@ -21,16 +27,13 @@ de décision à deux niveaux ait été respecté.
 |---|---|
 | **Authentification** | Connexion par email/mot de passe, session par cookie sécurisé, vérification du statut actif du compte. 4 rôles avec permissions différenciées. |
 | **Cloisonnement par centrale** | Le Chef Centrale, le Responsable Mécanique et le Responsable Exploitation sont chacun rattachés à **une seule centrale** et ne voient/n'agissent que sur celle-ci (tableau de bord, actifs, demandes, reporting, mouvements). Seul l'Administrateur a une vue globale sur l'ensemble du parc. |
-| **Gestion des centrales** | Page dédiée **Centrales** (menu latéral, Administrateur uniquement) : tableau de toutes les centrales avec création, modification et suppression, code unique, type, localisation, **région électrique** (référentiel des 9 régions SOCAD'EL : DRO, DRY, DRNEA, DRONO, DRSOM, DRC, DRE, DRSANO, DRSM), puissance installée, seuil d'alerte, statut, import/export CSV/Excel. Le Tableau de bord n'affiche plus que la vue d'ensemble en lecture seule (cartes cliquables vers la fiche analytique de chaque centrale). |
+| **Gestion des centrales** | Page dédiée **Centrales** (menu latéral, Administrateur uniquement) : tableau de toutes les centrales avec création, modification et suppression, code unique, type, localisation, **région électrique** (référentiel des 9 régions SOCAD'EL : DRD, DRY, DRNEA, DRONO, DRSOM, DRC, DRE, DRSANO, DRSM), puissance installée, seuil d'alerte, statut, import/export CSV/Excel. Le Tableau de bord n'affiche plus que la vue d'ensemble en lecture seule (cartes cliquables vers la fiche analytique de chaque centrale). |
 | **Tableau de bord par centrale** | Vue analytique en lecture seule (page centrale) : identité, KPI (puissance installée/disponible/indisponible, disponibilité, taux d'utilisation, production estimée réelle/prévue et écart), répartition des actifs par statut et par cause d'indisponibilité (cliquable), actifs critiques, unités de production, équipements de premier niveau, résumé maintenance, opérations en cours, simulation d'impact interactive, alertes cliquables, évolution de la disponibilité par période (jour/semaine/mois/trimestre/année, reconstruite à partir des mouvements réellement enregistrés), timeline des événements et contribution au parc. La création/modification/suppression de la centrale ou de ses actifs se fait depuis les pages **Centrales** et **Actifs** dédiées. |
 | **Gestion des actifs** | Page dédiée **Actifs** (menu latéral, Administrateur uniquement) : sélection d'une centrale, puis tableau de ses actifs (code, nom, type, actif mère, statut, criticité, contribution) avec création, modification et suppression, import/export CSV/Excel. Fiche complète : code unique (immuable après création), désignation, type, fabricant, modèle, numéro de série, date de mise en service, criticité. |
 | **Hiérarchie actif mère / actifs enfants** | Profondeur illimitée (ex : Centrale → Unité de production → Groupe de production → Turbine → Générateur/Capteur), avec navigation par fil d'Ariane et détection des boucles interdite. Le tableau de bord d'une centrale n'affiche que les **actifs de premier niveau** (avec un badge « N sous-actif(s) ») ; les actifs enfants n'apparaissent qu'en ouvrant le détail de leur actif mère. |
 | **Import / export CSV et Excel** | Centrales, actifs (avec relations mère/fils via `parent_code`) et utilisateurs (avec centrale via `centrale_code`) sont importables depuis un fichier **CSV ou Excel (.xlsx)**, et exportables en CSV UTF-8 — Administrateur uniquement. |
-| **Retrait du service** | Demande de retrait d'un actif en service/maintenance/réparation → statut cible `HORS_SERVICE`. |
-| **Déplacement entre centrales** | Demande de déplacement avec choix : actif seul ou avec toute sa hiérarchie. |
-| **Décommissionnement** | Demande avec état cible au choix : `DECOMMISSIONNE` ou `REFORME` — définitif, aucune remise en service possible ensuite. L'actif n'est jamais supprimé physiquement (traçabilité). |
-| **Remise en service** | Demande de remise en service d'un actif hors service, avec simulation de l'impact positif sur la centrale. |
-| **Simulation obligatoire** | Pour les 4 types de demande : situation actuelle vs. situation simulée (puissance, disponibilité), sur la centrale source **et** la centrale destination pour un déplacement, avec impact consolidé sur le parc. Calculée dans un scénario virtuel, sans jamais modifier les données réelles. |
+| **Retrait du service** | Demande de retrait d'un actif en service/maintenance/réparation → statut cible `HORS_SERVICE`. C'est le **seul type de demande accessible depuis l'interface** (voir encadré en tête de ce document). |
+| **Simulation obligatoire** | Situation actuelle vs. situation simulée (puissance, disponibilité) sur la centrale, avec impact consolidé sur le parc. Calculée dans un scénario virtuel, sans jamais modifier les données réelles. |
 | **Niveaux d'impact configurables** | Chaque simulation est classée Faible / Moyen / Important / Critique selon des seuils réglables par l'Administrateur. **Une demande à impact critique exige l'approbation finale d'un Administrateur**, même si elle concerne la centrale d'un Chef Centrale. |
 | **Détection de simulation obsolète** | Avant transmission et avant approbation finale, le système recompare la situation actuelle à celle utilisée pour la simulation. En cas d'écart, l'étape est bloquée et une nouvelle simulation doit être relancée. |
 | **Circuit de décision à deux niveaux** | Le Responsable Exploitation vérifie la pertinence de toute demande créée par le Responsable Mécanique, puis la transmet (ou la rejette avec motif) ; le Chef Centrale de la centrale concernée (ou l'Administrateur si impact critique) l'approuve — ce qui **exécute la demande immédiatement** — ou la rejette avec motif. **Transmettre et Approuver ouvrent chacun une fenêtre de confirmation avec un motif/commentaire obligatoire et une case à cocher obligatoire** (« Je confirme la validation de cette demande ») avant que l'action ne devienne possible — le bouton reste désactivé tant que les deux ne sont pas renseignés. Rejeter et Annuler ouvrent une fenêtre de saisie du motif (obligatoire) intégrée à l'application. Ces quatre actions n'affichent plus aucune boîte de dialogue native du navigateur, et le motif/commentaire est également vérifié côté serveur. |
@@ -49,7 +52,7 @@ de décision à deux niveaux ait été respecté.
 
 ```
 Responsable Mécanique (ou Administrateur)
-        │  sélectionne un actif + type de demande (retrait / déplacement / décommissionnement / remise en service)
+        │  sélectionne un actif en service et crée une demande de retrait
         ▼
    simulation automatique obligatoire (situation avant/après, niveau d'impact)
         ▼
@@ -354,3 +357,14 @@ fenêtre de saisie du motif obligatoire (blocage si le champ est vide,
 demande bien rejetée/annulée avec le motif enregistré une fois rempli),
 et confirmation qu'aucune boîte de dialogue native du navigateur
 (`window.prompt`) n'apparaît plus sur ces trois actions.
+
+Pour le recentrage sur le retrait uniquement : vérifié qu'aucun bouton
+« Demander un déplacement », « Décommissionner » ou « Demander une remise
+en service » n'apparaît plus sur la fiche d'un actif (0 élément trouvé,
+quel que soit son statut), que les actions directes de maintenance/
+réparation restent accessibles (inchangées), et que le panneau
+« Simulation d'impact » de la fiche centrale ne propose plus que le
+retrait (sélecteur de type retiré). Correction du sigle de la région 01
+(`DRO` → `DRD`) vérifiée : nouvelle valeur acceptée, ancienne rejetée en
+400, et migration de correction testée sur une centrale déjà enregistrée
+avec l'ancien sigle.
