@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { openModal } from '../components/modal.js';
 import { renderSimulation } from '../components/demandeFormModal.js';
 import {
   escapeHtml,
@@ -15,6 +16,48 @@ import {
 } from '../utils.js';
 import { getCurrentUser, canReviewExploitation, canApprouverFinal, isAdmin } from '../auth.js';
 import { refresh } from '../router.js';
+
+// Modal de confirmation obligatoire pour les décisions d'engagement (transmission par
+// l'Exploitation, approbation par le Chef Centrale) : la personne doit cocher une case
+// de confirmation explicite avant que le bouton d'action ne soit activable.
+function openConfirmationModal({ titre, message, confirmLabel, confirmClass = 'btn-primary', onConfirm }) {
+  const bodyHtml = `
+    <p>${escapeHtml(message)}</p>
+    <label class="field">
+      <span>Commentaire (optionnel)</span>
+      <textarea id="confirm-commentaire" rows="2"></textarea>
+    </label>
+    <label class="field field-checkbox">
+      <input type="checkbox" id="confirm-checkbox" />
+      <span>Je confirme la validation de cette demande.</span>
+    </label>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" data-close>Annuler</button>
+      <button type="button" class="btn ${confirmClass}" id="confirm-action-btn" disabled>${confirmLabel}</button>
+    </div>
+  `;
+
+  openModal(titre, bodyHtml, {
+    onMount: (dialog, close) => {
+      const checkbox = dialog.querySelector('#confirm-checkbox');
+      const actionBtn = dialog.querySelector('#confirm-action-btn');
+      checkbox.addEventListener('change', () => {
+        actionBtn.disabled = !checkbox.checked;
+      });
+      actionBtn.addEventListener('click', async () => {
+        const commentaire = dialog.querySelector('#confirm-commentaire').value.trim();
+        actionBtn.disabled = true;
+        try {
+          await onConfirm(commentaire);
+          close();
+        } catch (err) {
+          showToast(err.message, 'error');
+          actionBtn.disabled = !checkbox.checked;
+        }
+      });
+    },
+  });
+}
 
 export async function renderDemandeDetail({ id }) {
   const app = document.getElementById('app');
@@ -153,15 +196,18 @@ export async function renderDemandeDetail({ id }) {
     }
   });
 
-  document.getElementById('transmettre-btn')?.addEventListener('click', async () => {
-    const commentaire = window.prompt('Commentaire de vérification (optionnel) :', '') || '';
-    try {
-      await api.transmettreDemande(demande.id, commentaire);
-      showToast('Demande transmise au Chef Centrale.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  document.getElementById('transmettre-btn')?.addEventListener('click', () => {
+    openConfirmationModal({
+      titre: 'Transmettre au Chef Centrale',
+      message: 'En tant que Responsable Exploitation, vous confirmez avoir vérifié cette demande avant de la transmettre.',
+      confirmLabel: 'Transmettre',
+      confirmClass: 'btn-success',
+      onConfirm: async (commentaire) => {
+        await api.transmettreDemande(demande.id, commentaire);
+        showToast('Demande transmise au Chef Centrale.', 'success');
+        refresh();
+      },
+    });
   });
 
   document.getElementById('rejeter-exploitation-btn')?.addEventListener('click', async () => {
@@ -176,16 +222,18 @@ export async function renderDemandeDetail({ id }) {
     }
   });
 
-  document.getElementById('approuver-btn')?.addEventListener('click', async () => {
-    if (!confirm('Approuver cette demande ? Cette action exécutera immédiatement le mouvement et modifiera les actifs concernés.')) return;
-    const commentaire = window.prompt('Commentaire d\'approbation (optionnel) :', '') || '';
-    try {
-      await api.approuverDemande(demande.id, commentaire);
-      showToast('Demande approuvée et exécutée.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  document.getElementById('approuver-btn')?.addEventListener('click', () => {
+    openConfirmationModal({
+      titre: 'Approuver la demande',
+      message: 'En tant que Chef Centrale, vous confirmez cette approbation. Cette action exécutera immédiatement le mouvement et modifiera les actifs concernés.',
+      confirmLabel: 'Approuver (exécuter)',
+      confirmClass: 'btn-primary',
+      onConfirm: async (commentaire) => {
+        await api.approuverDemande(demande.id, commentaire);
+        showToast('Demande approuvée et exécutée.', 'success');
+        refresh();
+      },
+    });
   });
 
   document.getElementById('rejeter-btn')?.addEventListener('click', async () => {

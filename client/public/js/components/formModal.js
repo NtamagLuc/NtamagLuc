@@ -98,10 +98,11 @@ export function openCentraleFormModal({ onDone, centrale } = {}) {
   });
 }
 
-export function openActifFormModal({ centraleId, actifsCentrale = [], onDone } = {}) {
+export function openActifFormModal({ centraleId, actifsCentrale = [], actif, onDone } = {}) {
+  const isEdit = !!actif;
   const parentOptions = actifsCentrale
-    .filter((a) => !['DECOMMISSIONNE', 'REFORME'].includes(a.statut))
-    .map((a) => `<option value="${a.id}">${escapeHtml(a.nom)}</option>`)
+    .filter((a) => !['DECOMMISSIONNE', 'REFORME'].includes(a.statut) && a.id !== actif?.id)
+    .map((a) => `<option value="${a.id}" ${isEdit && actif.parent_id === a.id ? 'selected' : ''}>${escapeHtml(a.nom)}</option>`)
     .join('');
 
   const bodyHtml = `
@@ -109,92 +110,100 @@ export function openActifFormModal({ centraleId, actifsCentrale = [], onDone } =
       <div class="field-row">
         <label class="field">
           <span>Code (unique)</span>
-          <input type="text" name="code" required placeholder="Ex : CTH-DLA-TG03" />
+          <input type="text" name="code" required placeholder="Ex : CTH-DLA-TG03" value="${isEdit ? escapeHtml(actif.code) : ''}" ${isEdit ? 'disabled' : ''} />
         </label>
         <label class="field">
           <span>Nom</span>
-          <input type="text" name="nom" required placeholder="Ex : Turbine à gaz TG-03" />
+          <input type="text" name="nom" required placeholder="Ex : Turbine à gaz TG-03" value="${isEdit ? escapeHtml(actif.nom) : ''}" />
         </label>
       </div>
       <label class="field">
         <span>Type</span>
-        <input type="text" name="type" placeholder="Ex : UNITE_PRODUCTION, GROUPE_PRODUCTION, TURBINE, GENERATEUR…" />
+        <input type="text" name="type" placeholder="Ex : UNITE_PRODUCTION, GROUPE_PRODUCTION, TURBINE, GENERATEUR…" value="${isEdit ? escapeHtml(actif.type) : ''}" />
       </label>
       <label class="field">
         <span>Actif mère (optionnel)</span>
-        <select name="parentId">
+        <select name="parentId" ${isEdit ? 'disabled' : ''}>
           <option value="">— Aucun (actif de premier niveau) —</option>
           ${parentOptions}
         </select>
+        ${isEdit ? '<small class="field-hint">L\'actif mère ne peut pas être changé ici (utilisez une demande de déplacement).</small>' : ''}
       </label>
       <div class="field-row">
         <label class="field">
           <span>Criticité</span>
           <select name="criticite">
-            <option value="FAIBLE">Faible</option>
-            <option value="MOYENNE" selected>Moyenne</option>
-            <option value="HAUTE">Haute</option>
-            <option value="CRITIQUE">Critique</option>
+            <option value="FAIBLE" ${isEdit && actif.criticite === 'FAIBLE' ? 'selected' : ''}>Faible</option>
+            <option value="MOYENNE" ${!isEdit || actif.criticite === 'MOYENNE' ? 'selected' : ''}>Moyenne</option>
+            <option value="HAUTE" ${isEdit && actif.criticite === 'HAUTE' ? 'selected' : ''}>Haute</option>
+            <option value="CRITIQUE" ${isEdit && actif.criticite === 'CRITIQUE' ? 'selected' : ''}>Critique</option>
           </select>
         </label>
         <label class="field">
           <span>Contribution (MW)</span>
-          <input type="number" name="contributionMw" value="0" min="0" step="0.1" />
+          <input type="number" name="contributionMw" value="${isEdit ? actif.contribution_mw : 0}" min="0" step="0.1" />
         </label>
       </div>
       <div class="field-row">
         <label class="field">
           <span>Fabricant</span>
-          <input type="text" name="fabricant" />
+          <input type="text" name="fabricant" value="${isEdit ? escapeHtml(actif.fabricant || '') : ''}" />
         </label>
         <label class="field">
           <span>Modèle</span>
-          <input type="text" name="modele" />
+          <input type="text" name="modele" value="${isEdit ? escapeHtml(actif.modele || '') : ''}" />
         </label>
       </div>
       <div class="field-row">
         <label class="field">
           <span>Numéro de série</span>
-          <input type="text" name="numeroSerie" />
+          <input type="text" name="numeroSerie" value="${isEdit ? escapeHtml(actif.numero_serie || '') : ''}" />
         </label>
         <label class="field">
           <span>Date de mise en service</span>
-          <input type="date" name="dateInstallation" />
+          <input type="date" name="dateInstallation" value="${isEdit ? escapeHtml(actif.date_installation || '') : ''}" />
         </label>
       </div>
       <label class="field">
         <span>Description</span>
-        <textarea name="description" rows="2"></textarea>
+        <textarea name="description" rows="2">${isEdit ? escapeHtml(actif.description || '') : ''}</textarea>
       </label>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-close>Annuler</button>
-        <button type="submit" class="btn btn-primary">Créer l'actif</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Enregistrer' : "Créer l'actif"}</button>
       </div>
     </form>
   `;
 
-  openModal('Nouvel actif', bodyHtml, {
+  openModal(isEdit ? `Modifier ${actif.nom}` : 'Nouvel actif', bodyHtml, {
     onMount: (dialog, close) => {
       const form = dialog.querySelector('#actif-form');
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
+        const payload = {
+          nom: fd.get('nom'),
+          type: fd.get('type') || 'EQUIPEMENT',
+          criticite: fd.get('criticite'),
+          contributionMw: Number(fd.get('contributionMw')) || 0,
+          fabricant: fd.get('fabricant') || null,
+          modele: fd.get('modele') || null,
+          numeroSerie: fd.get('numeroSerie') || null,
+          dateInstallation: fd.get('dateInstallation') || null,
+          description: fd.get('description') || null,
+        };
         try {
-          await api.createActif({
-            code: fd.get('code'),
-            nom: fd.get('nom'),
-            type: fd.get('type') || 'EQUIPEMENT',
-            centraleId,
-            parentId: fd.get('parentId') ? Number(fd.get('parentId')) : null,
-            criticite: fd.get('criticite'),
-            contributionMw: Number(fd.get('contributionMw')) || 0,
-            fabricant: fd.get('fabricant') || null,
-            modele: fd.get('modele') || null,
-            numeroSerie: fd.get('numeroSerie') || null,
-            dateInstallation: fd.get('dateInstallation') || null,
-            description: fd.get('description') || null,
-          });
-          showToast('Actif créé.', 'success');
+          if (isEdit) {
+            await api.updateActif(actif.id, payload);
+          } else {
+            await api.createActif({
+              ...payload,
+              code: fd.get('code'),
+              centraleId,
+              parentId: fd.get('parentId') ? Number(fd.get('parentId')) : null,
+            });
+          }
+          showToast(isEdit ? 'Actif modifié.' : 'Actif créé.', 'success');
           close();
           onDone?.();
         } catch (err) {

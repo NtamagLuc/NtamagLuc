@@ -1,9 +1,7 @@
 import { api } from '../api.js';
 import { gaugeHtml } from '../components/gauge.js';
-import { openCentraleFormModal } from '../components/formModal.js';
-import { escapeHtml, showToast, TYPE_CENTRALE_LABELS, CENTRALE_STATUT_LABELS, CENTRALE_STATUT_CLASSES, formatNombre } from '../utils.js';
-import { canManageReferentiel, canReviewExploitation, canApprouverFinal, getCurrentUser } from '../auth.js';
-import { refresh } from '../router.js';
+import { escapeHtml, TYPE_CENTRALE_LABELS, CENTRALE_STATUT_LABELS, CENTRALE_STATUT_CLASSES, formatNombre } from '../utils.js';
+import { canReviewExploitation, canApprouverFinal, getCurrentUser } from '../auth.js';
 
 export async function renderDashboard() {
   const app = document.getElementById('app');
@@ -23,20 +21,7 @@ export async function renderDashboard() {
         <h1>Bonjour ${escapeHtml(user.nom)}</h1>
         <p class="page-subtitle">${centrales.length} centrale(s) · ${totalActifs} actif(s) en service ou en maintenance</p>
       </div>
-      ${
-        canManageReferentiel()
-          ? `<div class="actif-actions">
-               <a class="btn btn-ghost" href="${api.exportCentralesUrl()}" target="_blank" rel="noopener">Exporter centrales</a>
-               <button class="btn btn-ghost" id="import-centrales-btn">Importer centrales (CSV/Excel)</button>
-               <a class="btn btn-ghost" href="${api.exportActifsUrl()}" target="_blank" rel="noopener">Exporter actifs</a>
-               <button class="btn btn-ghost" id="import-actifs-btn">Importer actifs (CSV/Excel)</button>
-               <button class="btn btn-primary" id="new-centrale-btn">+ Nouvelle centrale</button>
-             </div>`
-          : ''
-      }
     </div>
-    <input type="file" id="import-centrales-file" accept=".csv,.xlsx,.xls" style="display:none;" />
-    <input type="file" id="import-actifs-file" accept=".csv,.xlsx,.xls" style="display:none;" />
 
     ${
       canReviewExploitation() && aVerifier.length
@@ -60,37 +45,6 @@ export async function renderDashboard() {
       ${centrales.map(renderCentraleCard).join('') || '<p class="empty-state">Aucune centrale enregistrée.</p>'}
     </div>
   `;
-
-  document.getElementById('new-centrale-btn')?.addEventListener('click', () => {
-    openCentraleFormModal({ onDone: refresh });
-  });
-
-  setupImportButton('import-centrales-btn', 'import-centrales-file', api.importCentrales);
-  setupImportButton('import-actifs-btn', 'import-actifs-file', api.importActifs);
-}
-
-function setupImportButton(btnId, inputId, importFn) {
-  const btn = document.getElementById(btnId);
-  const input = document.getElementById(inputId);
-  if (!btn || !input) return;
-  btn.addEventListener('click', () => input.click());
-  input.addEventListener('change', async () => {
-    const file = input.files[0];
-    if (!file) return;
-    try {
-      const rapport = await importFn(file);
-      showToast(
-        `Import terminé : ${rapport.crees} créé(s), ${rapport.misAJour} mis à jour${rapport.erreurs.length ? `, ${rapport.erreurs.length} erreur(s)` : ''}.`,
-        rapport.erreurs.length ? 'error' : 'success'
-      );
-      if (rapport.erreurs.length) console.warn(`Erreurs import (${btnId}) :`, rapport.erreurs);
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      input.value = '';
-    }
-  });
 }
 
 function renderCentraleCard(c) {

@@ -3,7 +3,6 @@ import { barListHtml, lineChartSvg } from '../components/charts.js';
 import { renderActifTree } from '../components/actifTree.js';
 import { attachActifActionHandlers } from '../components/actifActions.js';
 import { renderSimulation } from '../components/demandeFormModal.js';
-import { openActifFormModal, openCentraleFormModal } from '../components/formModal.js';
 import {
   escapeHtml,
   formatNombre,
@@ -19,7 +18,6 @@ import {
   NIVEAU_IMPACT_LABELS,
   NIVEAU_IMPACT_CLASSES,
 } from '../utils.js';
-import { canManageReferentiel } from '../auth.js';
 import { refresh } from '../router.js';
 
 const STATUT_COLORS = {
@@ -151,22 +149,8 @@ export async function renderCentraleDetail({ id }) {
           </p>
           <p class="dashboard-updated">Dernière actualisation : ${formatDate(dashboard.identite.derniereActualisation)}</p>
         </div>
-        ${
-          canManageReferentiel()
-            ? `<div class="actif-actions">
-                 <button class="btn btn-ghost" id="edit-centrale-btn">Modifier</button>
-                 <button class="btn btn-primary" id="new-actif-btn">+ Nouvel actif</button>
-               </div>`
-            : ''
-        }
       </div>
     `;
-    document.getElementById('new-actif-btn')?.addEventListener('click', () => {
-      openActifFormModal({ centraleId: centrale.id, actifsCentrale: centrale.actifs, onDone: refresh });
-    });
-    document.getElementById('edit-centrale-btn')?.addEventListener('click', () => {
-      openCentraleFormModal({ centrale, onDone: refresh });
-    });
   }
 
   function renderFilters() {

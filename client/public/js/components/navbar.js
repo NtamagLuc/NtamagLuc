@@ -57,6 +57,8 @@ export async function renderNavbar() {
     { path: '/reporting', label: 'Reporting', icon: '📊' },
   ];
   if (isAdmin()) {
+    links.push({ path: '/centrales', label: 'Centrales', icon: '🏭' });
+    links.push({ path: '/actifs', label: 'Actifs', icon: '🔧' });
     links.push({ path: '/utilisateurs', label: 'Utilisateurs', icon: '👥' });
     links.push({ path: '/entreprises', label: 'Entreprises', icon: '🏗️' });
     links.push({ path: '/parametres', label: 'Paramètres', icon: '⚙️' });

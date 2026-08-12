@@ -11,10 +11,14 @@ import { renderUtilisateurs } from './pages/utilisateurs.js';
 import { renderReporting } from './pages/reporting.js';
 import { renderParametres } from './pages/parametres.js';
 import { renderEntreprises } from './pages/entreprises.js';
+import { renderCentralesGestion } from './pages/centralesGestion.js';
+import { renderActifsGestion } from './pages/actifsGestion.js';
 
 route('/login', renderLogin);
 route('/', renderDashboard);
+route('/centrales', renderCentralesGestion);
 route('/centrales/:id', renderCentraleDetail);
+route('/actifs', renderActifsGestion);
 route('/actifs/:id', renderActifDetail);
 route('/demandes', renderDemandes);
 route('/demandes/:id', renderDemandeDetail);

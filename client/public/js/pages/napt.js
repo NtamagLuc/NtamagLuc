@@ -1,11 +1,11 @@
 import { api } from '../api.js';
 import { escapeHtml, formatDate, formatNombre, DEMANDE_TYPE_LABELS } from '../utils.js';
 
-// Génère une version imprimable de la NAPT (Note d'Arrêt pour Travaux Production),
-// annexe 4/10 du mémo SOCAD'EL, pré-remplie avec les données de la demande. Les champs
-// que l'application ne suit pas (référence note d'info, entreprise désignée, clients
-// industriels…) restent éditables à l'écran avant impression : ce sont des champs
-// papier destinés à être complétés par le CCR / le responsable technique régional.
+// Génère une version imprimable et non modifiable de la NAPT (Note d'Arrêt pour Travaux
+// Production), annexe 4/10 du mémo SOCAD'EL, pré-remplie avec les données de la demande.
+// Les champs que l'application ne suit pas (référence de la note d'information) sont
+// affichés vides (« — ») plutôt qu'éditables : le document imprimé reflète uniquement
+// les données enregistrées dans l'application.
 
 function formatDateSimple(isoDate) {
   if (!isoDate) return '';
@@ -23,8 +23,8 @@ function dateEtHeure(iso) {
   };
 }
 
-function champEditable(valeur = '') {
-  return `<input type="text" class="napt-input" value="${escapeHtml(valeur)}" />`;
+function champTexte(valeur = '') {
+  return valeur ? escapeHtml(valeur) : '<span class="napt-vide">—</span>';
 }
 
 export async function renderNapt({ id }) {
@@ -71,7 +71,7 @@ export async function renderNapt({ id }) {
           </td>
           <td class="napt-segment-cell">
             <div class="napt-field-row"><span class="napt-label">Segment :</span> <strong>PRODUCTION</strong></div>
-            <div class="napt-field-row"><span class="napt-label">Région Electrique :</span> ${champEditable(centrale.region_electrique || '')}</div>
+            <div class="napt-field-row"><span class="napt-label">Région Electrique :</span> ${champTexte(centrale.region_electrique)}</div>
           </td>
         </tr>
 
@@ -82,19 +82,19 @@ export async function renderNapt({ id }) {
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Date de réception de la Note d'information :</td>
-          <td colspan="2" class="napt-cell-value">${champEditable(demande.date_exploitation ? formatDate(demande.date_exploitation) : '')}</td>
+          <td colspan="2" class="napt-cell-value">${champTexte(demande.date_exploitation ? formatDate(demande.date_exploitation) : '')}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">N° Référence Note d'information :</td>
-          <td colspan="2" class="napt-cell-value">${champEditable()}</td>
+          <td colspan="2" class="napt-cell-value">${champTexte()}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Nom du Responsable Centrale concerné :</td>
-          <td colspan="2" class="napt-cell-value">${escapeHtml(demande.approbateur_nom || '')}</td>
+          <td colspan="2" class="napt-cell-value">${champTexte(demande.approbateur_nom)}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Entreprise(s) désignée(s) pour les travaux :</td>
-          <td colspan="2" class="napt-cell-value">${demande.entreprise_designee_nom ? escapeHtml(demande.entreprise_designee_nom) : champEditable()}</td>
+          <td colspan="2" class="napt-cell-value">${champTexte(demande.entreprise_designee_nom)}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Centrale concernée :</td>
@@ -108,11 +108,11 @@ export async function renderNapt({ id }) {
         <tr><td colspan="4" class="napt-section-title">Ouvrages et localités impactés</td></tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Nombre de départs sur la rame :</td>
-          <td colspan="2" class="napt-cell-value">${demande.nb_departs_rame !== null && demande.nb_departs_rame !== undefined ? demande.nb_departs_rame : champEditable()}</td>
+          <td colspan="2" class="napt-cell-value">${demande.nb_departs_rame !== null && demande.nb_departs_rame !== undefined ? demande.nb_departs_rame : champTexte()}</td>
         </tr>
         <tr>
           <td colspan="2" class="napt-cell-label">Nombre de départs impactés par la coupure :</td>
-          <td colspan="2" class="napt-cell-value">${demande.nb_departs_impactes !== null && demande.nb_departs_impactes !== undefined ? demande.nb_departs_impactes : champEditable()}</td>
+          <td colspan="2" class="napt-cell-value">${demande.nb_departs_impactes !== null && demande.nb_departs_impactes !== undefined ? demande.nb_departs_impactes : champTexte()}</td>
         </tr>
         <tr class="napt-table-head-row">
           <td class="napt-th">Ouvrage / actif impacté</td>
@@ -125,9 +125,9 @@ export async function renderNapt({ id }) {
             (a) => `
           <tr>
             <td class="napt-td">${escapeHtml(a.nom)}${a.code ? ` <span class="napt-code">(${escapeHtml(a.code)})</span>` : ''}</td>
-            <td class="napt-td">${champEditable(debut.date)}</td>
-            <td class="napt-td">${champEditable(debut.heure)}</td>
-            <td class="napt-td">${a.contribution_mw ? formatNombre(a.contribution_mw) : champEditable()}</td>
+            <td class="napt-td">${champTexte(debut.date)}</td>
+            <td class="napt-td">${champTexte(debut.heure)}</td>
+            <td class="napt-td">${a.contribution_mw ? formatNombre(a.contribution_mw) : champTexte()}</td>
           </tr>
         `
           )
@@ -139,13 +139,13 @@ export async function renderNapt({ id }) {
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label">
-            Date retour en exploitation : ${champEditable(formatDateSimple(demande.date_retour_exploitation))} &nbsp;&nbsp; Heure fin coupure : ${champEditable(demande.heure_fin_coupure || '')}
+            Date retour en exploitation : ${champTexte(formatDateSimple(demande.date_retour_exploitation))} &nbsp;&nbsp; Heure fin coupure : ${champTexte(demande.heure_fin_coupure)}
           </td>
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label" style="vertical-align:top;">
             Liste des départs impactés <em>(mettre en vert les départs partiellement/totalement repris par une autre source)</em> :
-            <div class="napt-blank-area" contenteditable="true">${escapeHtml(demande.liste_departs_impactes || '')}</div>
+            <div class="napt-blank-area">${champTexte(demande.liste_departs_impactes)}</div>
           </td>
         </tr>
 
@@ -156,18 +156,18 @@ export async function renderNapt({ id }) {
             &nbsp;
             <label><input type="checkbox" disabled ${demande.clients_industriels_impactes === 0 ? 'checked' : ''} /> NON</label>
           </td>
-          <td colspan="2" class="napt-cell-label">Si Oui, préciser lesquels : ${demande.liste_clients_industriels ? escapeHtml(demande.liste_clients_industriels) : champEditable()}</td>
+          <td colspan="2" class="napt-cell-label">Si Oui, préciser lesquels : ${champTexte(demande.liste_clients_industriels)}</td>
         </tr>
         <tr>
           <td colspan="4" class="napt-cell-label" style="vertical-align:top;">
             Liste des localités impactées :
-            <div class="napt-blank-area" contenteditable="true">${escapeHtml(demande.liste_localites_impactees || centrale.localisation || '')}</div>
+            <div class="napt-blank-area">${champTexte(demande.liste_localites_impactees || centrale.localisation)}</div>
           </td>
         </tr>
 
         <tr><td colspan="4" class="napt-section-title" style="text-align:center;">Consignes Générales / Observations Générales</td></tr>
         <tr>
-          <td colspan="4" class="napt-blank-area" contenteditable="true">${[demande.commentaire_exploitation, demande.commentaire_approbation].filter(Boolean).map(escapeHtml).join(' — ')}</td>
+          <td colspan="4" class="napt-blank-area">${champTexte([demande.commentaire_exploitation, demande.commentaire_approbation].filter(Boolean).join(' — '))}</td>
         </tr>
 
         <tr>
