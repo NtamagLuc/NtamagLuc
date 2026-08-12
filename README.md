@@ -33,7 +33,7 @@ de décision à deux niveaux ait été respecté.
 | **Simulation obligatoire** | Pour les 4 types de demande : situation actuelle vs. situation simulée (puissance, disponibilité), sur la centrale source **et** la centrale destination pour un déplacement, avec impact consolidé sur le parc. Calculée dans un scénario virtuel, sans jamais modifier les données réelles. |
 | **Niveaux d'impact configurables** | Chaque simulation est classée Faible / Moyen / Important / Critique selon des seuils réglables par l'Administrateur. **Une demande à impact critique exige l'approbation finale d'un Administrateur**, même si elle concerne la centrale d'un Chef Centrale. |
 | **Détection de simulation obsolète** | Avant transmission et avant approbation finale, le système recompare la situation actuelle à celle utilisée pour la simulation. En cas d'écart, l'étape est bloquée et une nouvelle simulation doit être relancée. |
-| **Circuit de décision à deux niveaux** | Le Responsable Exploitation vérifie la pertinence de toute demande créée par le Responsable Mécanique, puis la transmet (ou la rejette avec motif) ; le Chef Centrale de la centrale concernée (ou l'Administrateur si impact critique) l'approuve — ce qui **exécute la demande immédiatement** — ou la rejette avec motif. **Transmettre et Approuver ouvrent chacun une fenêtre de confirmation avec une case à cocher obligatoire** (« Je confirme la validation de cette demande ») avant que l'action ne devienne possible, en plus du commentaire optionnel. |
+| **Circuit de décision à deux niveaux** | Le Responsable Exploitation vérifie la pertinence de toute demande créée par le Responsable Mécanique, puis la transmet (ou la rejette avec motif) ; le Chef Centrale de la centrale concernée (ou l'Administrateur si impact critique) l'approuve — ce qui **exécute la demande immédiatement** — ou la rejette avec motif. **Transmettre et Approuver ouvrent chacun une fenêtre de confirmation avec une case à cocher obligatoire** (« Je confirme la validation de cette demande ») avant que l'action ne devienne possible, en plus du commentaire optionnel. Rejeter et Annuler ouvrent une fenêtre de saisie du motif (obligatoire) intégrée à l'application — plus aucune boîte de dialogue native du navigateur. |
 | **Annulation** | Une demande non exécutée (en attente ou transmise) peut être annulée par son auteur ou un administrateur, avec motif obligatoire. |
 | **Recalcul des performances** | Toujours calculé en direct à partir de l'état courant des actifs (actif, unité, centrale, parc) — jamais de valeur mise en cache. |
 | **Historisation** | Chaque opération conserve l'auteur, la date, l'ancienne et la nouvelle valeur, le motif, la simulation associée et les deux décisions (Exploitation puis Chef Centrale). Rien n'est supprimable par un utilisateur standard. |
@@ -346,4 +346,9 @@ modification, import ou export (0 élément trouvé) ; NAPT vérifiée
 totalement non modifiable (0 `<input>` texte, 0 zone `contenteditable`, 0
 case à cocher active restante) ; fenêtre de confirmation obligatoire sur
 Transmettre et Approuver vérifiée (bouton désactivé tant que la case
-« Je confirme… » n'est pas cochée, réactivé si elle est décochée).
+« Je confirme… » n'est pas cochée, réactivé si elle est décochée) ; rejet
+(Exploitation puis Chef Centrale) et annulation vérifiés via la nouvelle
+fenêtre de saisie du motif obligatoire (blocage si le champ est vide,
+demande bien rejetée/annulée avec le motif enregistré une fois rempli),
+et confirmation qu'aucune boîte de dialogue native du navigateur
+(`window.prompt`) n'apparaît plus sur ces trois actions.

@@ -59,6 +59,45 @@ function openConfirmationModal({ titre, message, confirmLabel, confirmClass = 'b
   });
 }
 
+// Modal de saisie d'un motif obligatoire (rejet, annulation), à la place de la boîte
+// de dialogue native window.prompt() du navigateur.
+function openMotifModal({ titre, label, confirmLabel, confirmClass = 'btn-danger', onConfirm }) {
+  const bodyHtml = `
+    <label class="field">
+      <span>${escapeHtml(label)}</span>
+      <textarea id="motif-input" rows="3" required></textarea>
+    </label>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" data-close>Annuler</button>
+      <button type="button" class="btn ${confirmClass}" id="motif-action-btn">${confirmLabel}</button>
+    </div>
+  `;
+
+  openModal(titre, bodyHtml, {
+    onMount: (dialog, close) => {
+      const textarea = dialog.querySelector('#motif-input');
+      const actionBtn = dialog.querySelector('#motif-action-btn');
+      textarea.focus();
+      actionBtn.addEventListener('click', async () => {
+        const motif = textarea.value.trim();
+        if (!motif) {
+          showToast('Un motif est requis.', 'error');
+          textarea.focus();
+          return;
+        }
+        actionBtn.disabled = true;
+        try {
+          await onConfirm(motif);
+          close();
+        } catch (err) {
+          showToast(err.message, 'error');
+          actionBtn.disabled = false;
+        }
+      });
+    },
+  });
+}
+
 export async function renderDemandeDetail({ id }) {
   const app = document.getElementById('app');
   const demande = await api.getDemande(id);
@@ -210,16 +249,17 @@ export async function renderDemandeDetail({ id }) {
     });
   });
 
-  document.getElementById('rejeter-exploitation-btn')?.addEventListener('click', async () => {
-    const commentaire = window.prompt('Motif du rejet (obligatoire) :', '');
-    if (!commentaire) return;
-    try {
-      await api.rejeterExploitationDemande(demande.id, commentaire);
-      showToast('Demande rejetée.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  document.getElementById('rejeter-exploitation-btn')?.addEventListener('click', () => {
+    openMotifModal({
+      titre: 'Rejeter la demande',
+      label: 'Motif du rejet',
+      confirmLabel: 'Rejeter',
+      onConfirm: async (motif) => {
+        await api.rejeterExploitationDemande(demande.id, motif);
+        showToast('Demande rejetée.', 'success');
+        refresh();
+      },
+    });
   });
 
   document.getElementById('approuver-btn')?.addEventListener('click', () => {
@@ -236,27 +276,29 @@ export async function renderDemandeDetail({ id }) {
     });
   });
 
-  document.getElementById('rejeter-btn')?.addEventListener('click', async () => {
-    const commentaire = window.prompt('Motif du rejet (obligatoire) :', '');
-    if (!commentaire) return;
-    try {
-      await api.rejeterDemande(demande.id, commentaire);
-      showToast('Demande rejetée.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  document.getElementById('rejeter-btn')?.addEventListener('click', () => {
+    openMotifModal({
+      titre: 'Rejeter la demande',
+      label: 'Motif du rejet',
+      confirmLabel: 'Rejeter',
+      onConfirm: async (motif) => {
+        await api.rejeterDemande(demande.id, motif);
+        showToast('Demande rejetée.', 'success');
+        refresh();
+      },
+    });
   });
 
-  document.getElementById('annuler-btn')?.addEventListener('click', async () => {
-    const motif = window.prompt("Motif de l'annulation (obligatoire) :", '');
-    if (!motif) return;
-    try {
-      await api.annulerDemande(demande.id, motif);
-      showToast('Demande annulée.', 'success');
-      refresh();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  document.getElementById('annuler-btn')?.addEventListener('click', () => {
+    openMotifModal({
+      titre: 'Annuler la demande',
+      label: "Motif de l'annulation",
+      confirmLabel: 'Annuler la demande',
+      onConfirm: async (motif) => {
+        await api.annulerDemande(demande.id, motif);
+        showToast('Demande annulée.', 'success');
+        refresh();
+      },
+    });
   });
 }
